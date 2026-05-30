@@ -1,0 +1,22 @@
+{
+  "name": "alpha-beauty-salon",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.435.0",
+    "canvas-confetti": "^1.9.3",
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "vite": "^5.4.2",
+    "@vitejs/plugin-react": "^4.3.1"
+  }
+}
