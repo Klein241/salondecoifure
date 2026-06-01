@@ -62,6 +62,33 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
     }
   }, [preSelectedService]);
 
+  // Read ref code from URL search parameters on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get("ref");
+    if (refCode && affiliates.length > 0) {
+      setClientInfo(prev => ({ ...prev, affiliateCode: refCode }));
+      
+      const typedCode = refCode.trim().toLowerCase();
+      const affMatch = affiliates.find(aff => aff.code.toLowerCase() === typedCode);
+      if (affMatch) {
+        if (currentUser && currentUser.email.toLowerCase() === affMatch.clientEmail.toLowerCase()) {
+          setErrorMsg("Vous ne pouvez pas utiliser votre propre code de parrainage !");
+          setReferralDiscount(0);
+          setAppliedAffiliate(null);
+        } else {
+          const profileMatch = allProfiles.find(p => p.email.toLowerCase() === affMatch.clientEmail.toLowerCase());
+          const referrerName = profileMatch ? profileMatch.name : (affMatch.clientName || affMatch.clientEmail);
+          setReferralDiscount(0.1); // 10% discount
+          setAppliedAffiliate(referrerName);
+          setPromoDiscount(0);
+          setAppliedPromo(null);
+          setErrorMsg("");
+        }
+      }
+    }
+  }, [affiliates, allProfiles, currentUser]);
+
   useEffect(() => {
     if (currentUser) {
       setClientInfo({

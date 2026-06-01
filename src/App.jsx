@@ -9,25 +9,39 @@ import Portal from "./components/Portal"
 import Admin from "./components/Admin"
 import AdminLogin from "./components/AdminLogin"
 import Footer from "./components/Footer"
-import PortalModal from "./components/PortalModal"
-import { getStoredData } from "./data"
 import { supabase } from "./supabase"
 import { Sparkles, Gift } from "lucide-react"
 import WhatsAppButton from "./components/WhatsAppButton"
 
+const getRoute = (path) => {
+  const p = decodeURIComponent(path).trim().replace(/\/+$/, "");
+  if (!p || p === "/" || p === "") return "home";
+  
+  if (p === "/galerie" || p === "/gallery") return "gallery";
+  
+  if (p === "/nos services" || p === "/nos-services" || p === "/services" || p === "/nos%20services") return "services";
+  
+  if (p === "/espaceclient" || p === "/espace-client" || p === "/espace client" || p.toLowerCase() === "/espaceclient") return "portal";
+  
+  if (p === "/reservation" || p === "/booking" || p === "/ reservation") return "booking";
+  
+  if (p === "/parrainage" || p === "/affiliate") return "affiliate";
+  
+  if (p === "/admin") return "admin";
+  
+  return "home"; // Fallback
+};
+
 export default function App() {
-  const [activeSection, setActiveSection] = useState("home");
+  const [currentRoute, setCurrentRoute] = useState(getRoute(window.location.pathname));
   const [preSelectedService, setPreSelectedService] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [isPortalOpen, setIsPortalOpen] = useState(false);
   const [referralUrlCode, setReferralUrlCode] = useState("");
-  const [isAdminRoute, setIsAdminRoute] = useState(
-    window.location.pathname === "/admin" || window.location.pathname === "/admin/"
-  );
 
   useEffect(() => {
     const handleLocationChange = () => {
-      setIsAdminRoute(window.location.pathname === "/admin" || window.location.pathname === "/admin/");
+      setCurrentRoute(getRoute(window.location.pathname));
+      window.scrollTo({ top: 0, behavior: "smooth" });
     };
     window.addEventListener("popstate", handleLocationChange);
     
@@ -37,10 +51,17 @@ export default function App() {
       originalPushState.apply(this, args);
       handleLocationChange();
     };
+
+    const originalReplaceState = window.history.replaceState;
+    window.history.replaceState = function(...args) {
+      originalReplaceState.apply(this, args);
+      handleLocationChange();
+    };
     
     return () => {
       window.removeEventListener("popstate", handleLocationChange);
       window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
     };
   }, []);
 
@@ -72,19 +93,16 @@ export default function App() {
         subscription.unsubscribe();
       };
     }
+  }, []);
 
+  useEffect(() => {
     // Check for referral code in URL parameters
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get("ref");
     if (refCode) {
       setReferralUrlCode(refCode);
-      // Automatically scroll to booking if referred
-      setTimeout(() => {
-        const bookingSec = document.getElementById("booking");
-        if (bookingSec) {
-          bookingSec.scrollIntoView({ behavior: "smooth" });
-        }
-      }, 800);
+      // Automatically redirect to booking if referred
+      window.history.pushState({}, "", `/reservation?ref=${refCode}`);
     }
   }, []);
 
@@ -126,36 +144,19 @@ export default function App() {
     }
     setCurrentUser(null);
     localStorage.removeItem("current_user");
-    if (window.location.pathname === "/admin" || window.location.pathname === "/admin/") {
-      window.history.pushState({}, "", "/");
-    } else {
-      setActiveSection("home");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    window.history.pushState({}, "", "/");
   };
 
   const handleSelectService = (service) => {
     setPreSelectedService(service);
-    setActiveSection("booking");
-    const bookingSec = document.getElementById("booking");
-    if (bookingSec) {
-      bookingSec.scrollIntoView({ behavior: "smooth" });
-    }
+    window.history.pushState({}, "", "/reservation");
   };
 
   const handleGoToPortal = () => {
-    if (currentUser) {
-      setActiveSection("portal");
-      const portalSec = document.getElementById("portal");
-      if (portalSec) {
-        portalSec.scrollIntoView({ behavior: "smooth" });
-      }
-    } else {
-      setIsPortalOpen(true);
-    }
+    window.history.pushState({}, "", "/EspaceClient");
   };
 
-  if (isAdminRoute) {
+  if (currentRoute === "admin") {
     return (
       <div style={{ background: "#0b0b0b", minHeight: "100vh" }}>
         {currentUser && currentUser.role === "admin" ? (
@@ -168,7 +169,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ background: "var(--bg-color)", minHeight: "100vh" }}>
+    <div style={{ background: "var(--bg-color)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top Banner (Mother's Day Promotion) */}
       <div
         style={{
@@ -194,57 +195,52 @@ export default function App() {
 
       {/* Navigation */}
       <Navbar
-        activeSection={activeSection}
-        setActiveSection={(section) => {
-          if (section === "admin") {
-            window.history.pushState({}, "", "/admin");
-          } else {
-            setActiveSection(section);
-          }
-        }}
+        currentRoute={currentRoute}
         currentUser={currentUser}
         onLogout={handleLogout}
-        openPortalModal={() => setIsPortalOpen(true)}
+        openPortalModal={handleGoToPortal}
       />
 
-      {/* Main Content Sections */}
-      <Hero onBookNow={() => handleSelectService(null)} />
-      
-      <Services onSelectService={handleSelectService} />
-      
-      <Gallery />
-      
-      <Booking
-        preSelectedService={preSelectedService}
-        currentUser={currentUser}
-        onBookingSuccess={() => {
-          setPreSelectedService(null);
-          // if logged in client, refresh their view
-          if (currentUser && currentUser.role !== "admin") {
-            setActiveSection("portal");
-          }
-        }}
-      />
-      
-      <Affiliate onGoToPortal={handleGoToPortal} />
+      {/* Main Content Sections - Conditionally Rendered */}
+      <main style={{ flex: 1 }}>
+        {currentRoute === "home" && (
+          <Hero onBookNow={() => window.history.pushState({}, "", "/reservation")} />
+        )}
+        
+        {currentRoute === "services" && (
+          <Services onSelectService={handleSelectService} />
+        )}
+        
+        {currentRoute === "gallery" && (
+          <Gallery />
+        )}
+        
+        {currentRoute === "booking" && (
+          <Booking
+            preSelectedService={preSelectedService}
+            currentUser={currentUser}
+            onBookingSuccess={() => {
+              setPreSelectedService(null);
+              if (currentUser && currentUser.role !== "admin") {
+                window.history.pushState({}, "", "/EspaceClient");
+              } else {
+                window.history.pushState({}, "", "/");
+              }
+            }}
+          />
+        )}
+        
+        {currentRoute === "affiliate" && (
+          <Affiliate onGoToPortal={handleGoToPortal} />
+        )}
 
-      {/* Portal view if logged in as client */}
-      {currentUser && currentUser.role === "client" && (
-        <Portal currentUser={currentUser} onLoginSuccess={handleLoginSuccess} />
-      )}
-
-
+        {currentRoute === "portal" && (
+          <Portal currentUser={currentUser} onLoginSuccess={handleLoginSuccess} />
+        )}
+      </main>
 
       {/* Footer */}
       <Footer />
-
-      {/* Portal Pop-up Modal */}
-      <PortalModal
-        isOpen={isPortalOpen}
-        onClose={() => setIsPortalOpen(false)}
-        currentUser={currentUser}
-        onLoginSuccess={handleLoginSuccess}
-      />
 
       {/* WhatsApp Floating Button */}
       <WhatsAppButton />

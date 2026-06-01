@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { Menu, X, User, Award, ShieldAlert, Sparkles } from "lucide-react"
 
-export default function Navbar({ activeSection, setActiveSection, currentUser, onLogout, openPortalModal }) {
+export default function Navbar({ currentRoute, currentUser, onLogout, openPortalModal }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -22,12 +22,18 @@ export default function Navbar({ activeSection, setActiveSection, currentUser, o
   ];
 
   const handleNavClick = (id) => {
-    setActiveSection(id);
     setIsOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
+    const paths = {
+      home: "/",
+      services: "/nos-services",
+      gallery: "/galerie",
+      booking: "/reservation",
+      affiliate: "/parrainage",
+      portal: "/EspaceClient",
+      admin: "/admin"
+    };
+    const targetPath = paths[id] || "/";
+    window.history.pushState({}, "", targetPath);
   };
 
   return (
@@ -112,7 +118,7 @@ export default function Navbar({ activeSection, setActiveSection, currentUser, o
                 style={{
                   background: "none",
                   border: "none",
-                  color: activeSection === link.id ? "var(--primary-gold)" : "var(--text-primary)",
+                  color: currentRoute === link.id ? "var(--primary-gold)" : "var(--text-primary)",
                   cursor: "pointer",
                   fontSize: "0.85rem",
                   fontWeight: "500",
@@ -128,7 +134,7 @@ export default function Navbar({ activeSection, setActiveSection, currentUser, o
               >
                 {Icon && <Icon size={14} style={{ color: "var(--primary-gold)" }} />}
                 {link.label}
-                {activeSection === link.id && (
+                {currentRoute === link.id && (
                   <span
                     style={{
                       position: "absolute",
@@ -256,7 +262,7 @@ export default function Navbar({ activeSection, setActiveSection, currentUser, o
                 style={{
                   background: "none",
                   border: "none",
-                  color: activeSection === link.id ? "var(--primary-gold)" : "var(--text-primary)",
+                  color: currentRoute === link.id ? "var(--primary-gold)" : "var(--text-primary)",
                   cursor: "pointer",
                   fontSize: "1rem",
                   fontWeight: "600",
