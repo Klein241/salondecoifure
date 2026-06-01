@@ -7,6 +7,7 @@ import Booking from "./components/Booking"
 import Affiliate from "./components/Affiliate"
 import Portal from "./components/Portal"
 import Admin from "./components/Admin"
+import AdminLogin from "./components/AdminLogin"
 import Footer from "./components/Footer"
 import PortalModal from "./components/PortalModal"
 import { getStoredData } from "./data"
@@ -20,6 +21,28 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isPortalOpen, setIsPortalOpen] = useState(false);
   const [referralUrlCode, setReferralUrlCode] = useState("");
+  const [isAdminRoute, setIsAdminRoute] = useState(
+    window.location.pathname === "/admin" || window.location.pathname === "/admin/"
+  );
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setIsAdminRoute(window.location.pathname === "/admin" || window.location.pathname === "/admin/");
+    };
+    window.addEventListener("popstate", handleLocationChange);
+    
+    // Intercept pushState to handle route changes reactively
+    const originalPushState = window.history.pushState;
+    window.history.pushState = function(...args) {
+      originalPushState.apply(this, args);
+      handleLocationChange();
+    };
+    
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      window.history.pushState = originalPushState;
+    };
+  }, []);
 
   useEffect(() => {
     // Check if user is logged in (localStorage fallback)
@@ -103,8 +126,12 @@ export default function App() {
     }
     setCurrentUser(null);
     localStorage.removeItem("current_user");
-    setActiveSection("home");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (window.location.pathname === "/admin" || window.location.pathname === "/admin/") {
+      window.history.pushState({}, "", "/");
+    } else {
+      setActiveSection("home");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const handleSelectService = (service) => {
@@ -127,6 +154,18 @@ export default function App() {
       setIsPortalOpen(true);
     }
   };
+
+  if (isAdminRoute) {
+    return (
+      <div style={{ background: "#0b0b0b", minHeight: "100vh" }}>
+        {currentUser && currentUser.role === "admin" ? (
+          <Admin currentUser={currentUser} onLogout={handleLogout} />
+        ) : (
+          <AdminLogin onLoginSuccess={handleLoginSuccess} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "var(--bg-color)", minHeight: "100vh" }}>
@@ -156,7 +195,13 @@ export default function App() {
       {/* Navigation */}
       <Navbar
         activeSection={activeSection}
-        setActiveSection={setActiveSection}
+        setActiveSection={(section) => {
+          if (section === "admin") {
+            window.history.pushState({}, "", "/admin");
+          } else {
+            setActiveSection(section);
+          }
+        }}
         currentUser={currentUser}
         onLogout={handleLogout}
         openPortalModal={() => setIsPortalOpen(true)}
@@ -188,10 +233,7 @@ export default function App() {
         <Portal currentUser={currentUser} onLoginSuccess={handleLoginSuccess} />
       )}
 
-      {/* Admin view if logged in as admin */}
-      {currentUser && currentUser.role === "admin" && (
-        <Admin currentUser={currentUser} />
-      )}
+
 
       {/* Footer */}
       <Footer />

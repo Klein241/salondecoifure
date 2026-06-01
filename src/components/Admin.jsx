@@ -11,7 +11,7 @@ import {
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode
 } from "../supabase"
 
-export default function Admin({ currentUser }) {
+export default function Admin({ currentUser, onLogout }) {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [appointments, setAppointments] = useState([]);
   const [clients, setClients] = useState([]);
@@ -355,6 +355,11 @@ export default function Admin({ currentUser }) {
             <button onClick={loadAllData} className="btn-outline" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", padding: "8px 14px" }}>
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> {loading ? "Mise à jour..." : "Rafraîchir"}
             </button>
+            {onLogout && (
+              <button onClick={onLogout} className="btn-outline" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", padding: "8px 14px", border: "1px solid rgba(255, 69, 0, 0.3)", color: "#ff6b6b" }}>
+                <X size={14} /> Déconnexion
+              </button>
+            )}
           </div>
         </div>
 
