@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+﻿import React, { useState, useEffect } from "react"
 import Navbar from "./components/Navbar"
 import Hero from "./components/Hero"
 import Services from "./components/Services"
@@ -14,28 +14,31 @@ import { Sparkles, Gift } from "lucide-react"
 import WhatsAppButton from "./components/WhatsAppButton"
 
 const getRoute = (path) => {
-  const p = decodeURIComponent(path).trim().replace(/\/+$/, "");
+  // Decode, trim, remove trailing slashes, lowercase for matching
+  const p = decodeURIComponent(path).trim().replace(/\/+$/, "").toLowerCase();
   if (!p || p === "/" || p === "") return "home";
-  
+
   if (p === "/galerie" || p === "/gallery") return "gallery";
-  
-  if (p === "/nos services" || p === "/nos-services" || p === "/services" || p === "/nos%20services") return "services";
-  
-  if (p === "/espaceclient" || p === "/espace-client" || p === "/espace client" || p.toLowerCase() === "/espaceclient") return "portal";
-  
-  if (p === "/reservation" || p === "/booking" || p === "/ reservation") return "booking";
-  
+
+  if (p === "/nos services" || p === "/nos-services" || p === "/services") return "services";
+
+  if (p === "/espaceclient" || p === "/espace-client" || p === "/espace client") return "portal";
+
+  if (p === "/reservation" || p === "/booking") return "booking";
+
   if (p === "/parrainage" || p === "/affiliate") return "affiliate";
-  
-  if (p === "/admin") return "admin";
-  
-  return "home"; // Fallback
+
+  // Admin route: /admin or /admin/anything
+  if (p === "/admin" || p.startsWith("/admin/")) return "admin";
+
+  return "home";
 };
 
 export default function App() {
   const [currentRoute, setCurrentRoute] = useState(getRoute(window.location.pathname));
   const [preSelectedService, setPreSelectedService] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [referralUrlCode, setReferralUrlCode] = useState("");
 
   useEffect(() => {
@@ -44,8 +47,7 @@ export default function App() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     };
     window.addEventListener("popstate", handleLocationChange);
-    
-    // Intercept pushState to handle route changes reactively
+
     const originalPushState = window.history.pushState;
     window.history.pushState = function(...args) {
       originalPushState.apply(this, args);
@@ -57,7 +59,7 @@ export default function App() {
       originalReplaceState.apply(this, args);
       handleLocationChange();
     };
-    
+
     return () => {
       window.removeEventListener("popstate", handleLocationChange);
       window.history.pushState = originalPushState;
@@ -66,17 +68,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Check if user is logged in (localStorage fallback)
+    // Load user from localStorage first (fast)
     const cachedUser = localStorage.getItem("current_user");
     if (cachedUser) {
-      setCurrentUser(JSON.parse(cachedUser));
+      try {
+        setCurrentUser(JSON.parse(cachedUser));
+      } catch (e) {}
     }
 
-    // Supabase Auth Session listener
+    // Then verify with Supabase
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           loadSupabaseProfile(session.user);
+        } else {
+          setAuthLoading(false);
         }
       });
 
@@ -86,34 +92,33 @@ export default function App() {
         } else {
           setCurrentUser(null);
           localStorage.removeItem("current_user");
+          setAuthLoading(false);
         }
       });
 
-      return () => {
-        subscription.unsubscribe();
-      };
+      return () => { subscription.unsubscribe(); };
+    } else {
+      setAuthLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // Check for referral code in URL parameters
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get("ref");
     if (refCode) {
       setReferralUrlCode(refCode);
-      // Automatically redirect to booking if referred
       window.history.pushState({}, "", `/reservation?ref=${refCode}`);
     }
   }, []);
 
   const loadSupabaseProfile = async (authUser) => {
     try {
-      const { data: profile, error } = await supabase
+      const { data: profile } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
         .maybeSingle();
-      
+
       if (profile) {
         setCurrentUser(profile);
         localStorage.setItem("current_user", JSON.stringify(profile));
@@ -130,6 +135,8 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error loading profile:", err);
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -139,9 +146,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
+    if (supabase) { await supabase.auth.signOut(); }
     setCurrentUser(null);
     localStorage.removeItem("current_user");
     window.history.pushState({}, "", "/");
@@ -156,7 +161,28 @@ export default function App() {
     window.history.pushState({}, "", "/EspaceClient");
   };
 
+  // ── PAGE ADMIN (/admin/) ──────────────────────────────────────────────────
   if (currentRoute === "admin") {
+    // Pendant le chargement de l'auth, afficher un ecran de chargement minimal
+    if (authLoading) {
+      return (
+        <div style={{
+          minHeight: "100vh",
+          background: "#0b0b0b",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#d4af37",
+          flexDirection: "column",
+          gap: "16px"
+        }}>
+          <Sparkles size={32} style={{ animation: "spin 1s linear infinite" }} />
+          <span style={{ fontSize: "0.9rem", opacity: 0.7 }}>Verification de la session...</span>
+          <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+        </div>
+      );
+    }
+
     return (
       <div style={{ background: "#0b0b0b", minHeight: "100vh" }}>
         {currentUser && currentUser.role === "admin" ? (
@@ -168,32 +194,30 @@ export default function App() {
     );
   }
 
+  // ── PAGES PUBLIQUES ───────────────────────────────────────────────────────
   return (
     <div style={{ background: "var(--bg-color)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Top Banner (Mother's Day Promotion) */}
-      <div
-        style={{
-          background: "linear-gradient(90deg, #aa771c 0%, #121212 50%, #aa771c 100%)",
-          color: "var(--light-gold)",
-          fontSize: "0.8rem",
-          fontWeight: "600",
-          letterSpacing: "0.08em",
-          textAlign: "center",
-          padding: "8px 24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "8px",
-          position: "relative",
-          zIndex: 1001,
-        }}
-      >
+      {/* Bandeau promotionnel */}
+      <div style={{
+        background: "linear-gradient(90deg, #aa771c 0%, #121212 50%, #aa771c 100%)",
+        color: "var(--light-gold)",
+        fontSize: "0.8rem",
+        fontWeight: "600",
+        letterSpacing: "0.08em",
+        textAlign: "center",
+        padding: "8px 24px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        position: "relative",
+        zIndex: 1001,
+      }}>
         <Gift size={14} />
-        <span>SPÉCIAL FÊTE DES MÈRES : Célébrons les mamans d'Alibadeng ! Obtenez -10% de réduction en utilisant un code parrainage.</span>
+        <span>SPECIAL FETE DES MERES : Celebrons les mamans d'Alibadeng ! Obtenez -10% de reduction en utilisant un code parrainage.</span>
         <Sparkles size={12} />
       </div>
 
-      {/* Navigation */}
       <Navbar
         currentRoute={currentRoute}
         currentUser={currentUser}
@@ -201,20 +225,14 @@ export default function App() {
         openPortalModal={handleGoToPortal}
       />
 
-      {/* Main Content Sections - Conditionally Rendered */}
       <main style={{ flex: 1 }}>
         {currentRoute === "home" && (
           <Hero onBookNow={() => window.history.pushState({}, "", "/reservation")} />
         )}
-        
         {currentRoute === "services" && (
           <Services onSelectService={handleSelectService} />
         )}
-        
-        {currentRoute === "gallery" && (
-          <Gallery />
-        )}
-        
+        {currentRoute === "gallery" && <Gallery />}
         {currentRoute === "booking" && (
           <Booking
             preSelectedService={preSelectedService}
@@ -229,20 +247,15 @@ export default function App() {
             }}
           />
         )}
-        
         {currentRoute === "affiliate" && (
           <Affiliate onGoToPortal={handleGoToPortal} />
         )}
-
         {currentRoute === "portal" && (
           <Portal currentUser={currentUser} onLoginSuccess={handleLoginSuccess} />
         )}
       </main>
 
-      {/* Footer */}
       <Footer />
-
-      {/* WhatsApp Floating Button */}
       <WhatsAppButton />
     </div>
   );
