@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from "react"
+﻿import React, { useState, useEffect } from "react"
 import { 
   LayoutDashboard, Calendar, Users, Scissors, Award, Settings, 
-  Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag
+  Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image
 } from "lucide-react"
 import { 
   getAppointments, updateAppointmentStatus, deleteAppointment,
   getServices, addService, updateService, deleteService,
   getStaff, addStaff, deleteStaff,
   getAffiliates, saveAffiliate, supabase,
-  getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode
+  getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
+  uploadImage, addGalleryImage, deleteGalleryImage, getGalleryImages
 } from "../supabase"
 
 export default function Admin({ currentUser, onLogout }) {
@@ -47,6 +48,18 @@ export default function Admin({ currentUser, onLogout }) {
   // Calendar toggle
   const [isCalendarView, setIsCalendarView] = useState(false);
 
+  // Gallery states
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [showGalleryForm, setShowGalleryForm] = useState(false);
+  const [galleryForm, setGalleryForm] = useState({ title: "", description: "", category: "Salon", image_url: "" });
+  const [galleryUploadFile, setGalleryUploadFile] = useState(null);
+  const [galleryUploadPreview, setGalleryUploadPreview] = useState("");
+  const [galleryUploading, setGalleryUploading] = useState(false);
+
+  // Service image upload states
+  const [serviceImageFile, setServiceImageFile] = useState(null);
+  const [serviceImagePreview, setServiceImagePreview] = useState("");
+
   useEffect(() => {
     loadAllData();
   }, []);
@@ -68,6 +81,10 @@ export default function Admin({ currentUser, onLogout }) {
 
       const promos = await getPromoCodes();
       setPromoCodes(promos || []);
+
+      // Load gallery images
+      const gallery = await getGalleryImages();
+      setGalleryImages(gallery || []);
 
       // Load clients from profiles table in Supabase
       if (supabase) {
@@ -136,12 +153,18 @@ export default function Admin({ currentUser, onLogout }) {
 
   const handleSaveService = async (e) => {
     e.preventDefault();
+    let image_url = serviceForm.image_url || null;
+    if (serviceImageFile) {
+      setMessage({ text: "Upload image en cours...", type: "info" });
+      const uploaded = await uploadImage(serviceImageFile, "service-images");
+      if (uploaded) image_url = uploaded;
+    }
     const formatted = {
       ...serviceForm,
       price: Number(serviceForm.price),
-      benefits: serviceForm.benefits.split(",").map(b => b.trim()).filter(Boolean)
+      benefits: serviceForm.benefits.split(",").map(b => b.trim()).filter(Boolean),
+      image_url
     };
-
     if (editingService) {
       await updateService(editingService.id, formatted);
       setMessage({ text: "Soin mis à jour avec succès !", type: "success" });
@@ -152,7 +175,9 @@ export default function Admin({ currentUser, onLogout }) {
     }
     setShowServiceForm(false);
     setEditingService(null);
-    setServiceForm({ id: "", name: "", price: "", duration: "", category: "Visage & Corps", description: "", benefits: "" });
+    setServiceForm({ id: "", name: "", price: "", duration: "", category: "Visage & Corps", description: "", benefits: "", image_url: "" });
+    setServiceImageFile(null);
+    setServiceImagePreview("");
     loadAllData();
   };
 
@@ -165,8 +190,11 @@ export default function Admin({ currentUser, onLogout }) {
       duration: service.duration,
       category: service.category,
       description: service.description,
-      benefits: service.benefits.join(", ")
+      benefits: Array.isArray(service.benefits) ? service.benefits.join(", ") : (service.benefits || ""),
+      image_url: service.image_url || ""
     });
+    setServiceImagePreview(service.image_url || "");
+    setServiceImageFile(null);
     setShowServiceForm(true);
   };
 
@@ -314,6 +342,63 @@ export default function Admin({ currentUser, onLogout }) {
     c.email.toLowerCase().includes(clientSearch.toLowerCase())
   );
 
+
+  // ---------- GALLERY HANDLERS ----------
+  const handleGalleryFileChange = (e) => {
+    const f = e.target.files[0];
+    if (f) {
+      setGalleryUploadFile(f);
+      const reader = new FileReader();
+      reader.onload = (ev) => setGalleryUploadPreview(ev.target.result);
+      reader.readAsDataURL(f);
+    }
+  };
+
+  const handleServiceImageChange = (e) => {
+    const f = e.target.files[0];
+    if (f) {
+      setServiceImageFile(f);
+      const reader = new FileReader();
+      reader.onload = (ev) => setServiceImagePreview(ev.target.result);
+      reader.readAsDataURL(f);
+    }
+  };
+
+  const handleAddGalleryImage = async (e) => {
+    e.preventDefault();
+    if (!galleryUploadFile && !galleryForm.image_url) {
+      setMessage({ text: "Veuillez choisir une image ou entrer une URL.", type: "error" });
+      return;
+    }
+    setGalleryUploading(true);
+    let image_url = galleryForm.image_url;
+    if (galleryUploadFile) {
+      setMessage({ text: "Upload en cours...", type: "info" });
+      const uploaded = await uploadImage(galleryUploadFile, "gallery");
+      if (uploaded) image_url = uploaded;
+      else {
+        setMessage({ text: "Echec de l\'upload. Essayez une URL directe.", type: "error" });
+        setGalleryUploading(false);
+        return;
+      }
+    }
+    await addGalleryImage({ ...galleryForm, image_url });
+    setMessage({ text: "Image ajoutee a la galerie !", type: "success" });
+    setGalleryForm({ title: "", description: "", category: "Salon", image_url: "" });
+    setGalleryUploadFile(null);
+    setGalleryUploadPreview("");
+    setShowGalleryForm(false);
+    setGalleryUploading(false);
+    loadAllData();
+  };
+
+  const handleDeleteGalleryImage = async (id, image_url) => {
+    if (!window.confirm("Supprimer cette image de la galerie ?")) return;
+    await deleteGalleryImage(id, image_url);
+    setMessage({ text: "Image supprimee.", type: "success" });
+    loadAllData();
+  };
+
   const filteredServices = services.filter(s => 
     s.name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
     s.category.toLowerCase().includes(serviceSearch.toLowerCase())
@@ -387,6 +472,7 @@ export default function Admin({ currentUser, onLogout }) {
             { id: "appointments", label: "Rendez-vous", icon: Calendar },
             { id: "clients", label: "Clients", icon: Users },
             { id: "services", label: "Services (CRUD)", icon: Scissors },
+            { id: "gallery", label: "Galerie", icon: Image },
             { id: "promo_codes", label: "Codes Promo", icon: Tag },
             { id: "affiliates", label: "Affiliés", icon: Award },
             { id: "settings", label: "Paramètres", icon: Settings }
@@ -837,10 +923,16 @@ export default function Admin({ currentUser, onLogout }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                     <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Catégorie :</label>
                     <select value={serviceForm.category} onChange={e => setServiceForm({ ...serviceForm, category: e.target.value })} style={{ padding: "8px", background: "#121212", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }}>
-                      <option value="Visage & Corps">Visage & Corps</option>
-                      <option value="Teint & Éclat">Teint & Éclat</option>
-                      <option value="Soins Spécifiques">Soins Spécifiques</option>
-                      <option value="Massages">Massages</option>
+                      <optgroup label="Soins">
+                        <option value="Visage & Corps">Visage & Corps</option>
+                        <option value="Teint & Éclat">Teint & Éclat</option>
+                        <option value="Soins Spécifiques">Soins Spécifiques</option>
+                        <option value="Massages">Massages</option>
+                      </optgroup>
+                      <optgroup label="Coiffure">
+                        <option value="Coiffure Homme">Coiffure Homme</option>
+                        <option value="Coiffure Femme">Coiffure Femme</option>
+                      </optgroup>
                     </select>
                   </div>
 
@@ -854,6 +946,14 @@ export default function Admin({ currentUser, onLogout }) {
                     <input type="text" placeholder="ex: Hydrate la peau, Clarifie le teint" value={serviceForm.benefits} onChange={e => setServiceForm({ ...serviceForm, benefits: e.target.value })} style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }} />
                   </div>
 
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Image du soin (optionnel) :</label>
+                    <input type="file" accept="image/*" onChange={handleServiceImageChange} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", padding: "4px" }} />
+                    {(serviceImagePreview || serviceForm.image_url) && (
+                      <img src={serviceImagePreview || serviceForm.image_url} alt="preview" style={{ width: "100%", height: "150px", objectFit: "cover", borderRadius: "6px", border: "1px solid rgba(212,175,55,0.3)" }} />
+                    )}
+                  </div>
+
                   <button type="submit" className="btn-gold" style={{ marginTop: "10px" }}>Enregistrer le soin</button>
                 </form>
               </div>
@@ -862,16 +962,22 @@ export default function Admin({ currentUser, onLogout }) {
             {/* Services Grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
               {filteredServices.map(s => (
-                <div key={s.id} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "14px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div>
+                <div key={s.id} className="glass-panel" style={{ padding: "0", display: "flex", flexDirection: "column", justifyContent: "space-between", border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: "10px" }}>
+                  {s.image_url && (
+                    <div style={{ height: "160px", overflow: "hidden", position: "relative" }}>
+                      <img src={s.image_url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)" }} />
+                    </div>
+                  )}
+                  <div style={{ padding: "16px", gap: "8px", display: "flex", flexDirection: "column", flexGrow: 1 }}>
                     <span style={{ fontSize: "0.7rem", color: "var(--primary-gold)", textTransform: "uppercase" }}>{s.category}</span>
-                    <h4 style={{ fontSize: "1.1rem", margin: "6px 0" }}>{s.name}</h4>
-                    <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: "1.4" }}>{s.description}</p>
+                    <h4 style={{ fontSize: "1.05rem", margin: "4px 0" }}>{s.name}</h4>
+                    <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: "1.4" }}>{s.description}</p>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "10px", marginTop: "auto", padding: "0 16px 14px" }}>
                     <div>
                       <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{s.duration} • </span>
-                      <span style={{ fontWeight: "700", color: "var(--primary-gold)", fontSize: "0.95rem" }}>{s.price.toLocaleString("fr-FR")} F</span>
+                      <span style={{ fontWeight: "700", color: "var(--primary-gold)", fontSize: "0.9rem" }}>{Number(s.price).toLocaleString("fr-FR")} F</span>
                     </div>
                     <div style={{ display: "flex", gap: "4px" }}>
                       <button onClick={() => handleEditService(s)} style={{ padding: "6px", background: "none", border: "none", color: "var(--primary-gold)", cursor: "pointer" }}><Edit size={14} /></button>
@@ -1136,6 +1242,114 @@ export default function Admin({ currentUser, onLogout }) {
           </div>
         )}
 
+        {/* TAB: GALERIE */}
+        {activeTab === "gallery" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 className="gold-text" style={{ fontSize: "1.4rem", marginBottom: "4px" }}>Galerie de l\'Institut</h3>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{galleryImages.length} image{galleryImages.length !== 1 ? "s" : ""} publiee{galleryImages.length !== 1 ? "s" : ""}</p>
+              </div>
+              <button
+                onClick={() => setShowGalleryForm(true)}
+                className="btn-gold"
+                style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem" }}
+              >
+                <Plus size={16} /> Ajouter une image
+              </button>
+            </div>
+
+            {/* Add Image Form Modal */}
+            {showGalleryForm && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
+                <form onSubmit={handleAddGalleryImage} className="glass-panel" style={{ maxWidth: "520px", width: "100%", padding: "32px", border: "1px solid var(--primary-gold)", display: "flex", flexDirection: "column", gap: "16px", maxHeight: "90vh", overflowY: "auto" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h3 className="gold-text">Ajouter une photo</h3>
+                    <button type="button" onClick={() => { setShowGalleryForm(false); setGalleryUploadPreview(""); setGalleryUploadFile(null); }} style={{ background: "none", border: "none", color: "var(--primary-gold)", cursor: "pointer" }}><X size={20} /></button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Titre :</label>
+                    <input required value={galleryForm.title} onChange={e => setGalleryForm({ ...galleryForm, title: e.target.value })} placeholder="ex: Soin visage eclat" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Description (optionnel) :</label>
+                    <textarea value={galleryForm.description} onChange={e => setGalleryForm({ ...galleryForm, description: e.target.value })} rows="2" placeholder="Description courte..." style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none", resize: "none" }} />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Categorie :</label>
+                    <select value={galleryForm.category} onChange={e => setGalleryForm({ ...galleryForm, category: e.target.value })} style={{ padding: "10px", background: "#121212", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}>
+                      <option value="Salon">Salon</option>
+                      <option value="Visage">Visage</option>
+                      <option value="Corps">Corps</option>
+                      <option value="Coiffure">Coiffure</option>
+                      <option value="Massages">Massages</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Image (choisir un fichier) :</label>
+                    <input type="file" accept="image/*" onChange={handleGalleryFileChange} style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }} />
+                    {galleryUploadPreview && (
+                      <img src={galleryUploadPreview} alt="preview" style={{ width: "100%", height: "200px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(212,175,55,0.4)" }} />
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>— OU — URL directe de l\'image :</label>
+                    <input type="url" value={galleryForm.image_url} onChange={e => setGalleryForm({ ...galleryForm, image_url: e.target.value })} placeholder="https://example.com/image.jpg" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+
+                  <button type="submit" className="btn-gold" disabled={galleryUploading} style={{ marginTop: "8px", opacity: galleryUploading ? 0.7 : 1 }}>
+                    {galleryUploading ? "Upload en cours..." : "Publier dans la galerie"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Gallery Grid */}
+            {galleryImages.length === 0 ? (
+              <div className="glass-panel" style={{ padding: "60px", textAlign: "center", border: "1px dashed rgba(212,175,55,0.2)" }}>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Aucune image dans la galerie. Cliquez sur "Ajouter une image" pour commencer.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "20px" }}>
+                {galleryImages.map(img => (
+                  <div key={img.id} className="glass-panel" style={{ padding: 0, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px", position: "relative" }}>
+                    <div style={{ height: "200px", overflow: "hidden" }}>
+                      <img
+                        src={img.image_url || img.image}
+                        alt={img.title}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={e => { e.target.style.display = "none"; }}
+                      />
+                    </div>
+                    <div style={{ padding: "14px 16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <p style={{ fontWeight: "600", fontSize: "0.9rem", marginBottom: "2px" }}>{img.title}</p>
+                          <span style={{ fontSize: "0.7rem", color: "var(--primary-gold)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{img.category}</span>
+                          {img.description && <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "6px" }}>{img.description}</p>}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteGalleryImage(img.id, img.image_url || img.image)}
+                          style={{ background: "none", border: "none", color: "#FF4500", cursor: "pointer", flexShrink: 0, marginLeft: "8px" }}
+                          title="Supprimer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB 6: SETTINGS (Staff CRUD & Backups) */}
         {activeTab === "settings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
@@ -1217,3 +1431,6 @@ export default function Admin({ currentUser, onLogout }) {
     </section>
   );
 }
+
+
+

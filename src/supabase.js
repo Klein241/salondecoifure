@@ -12,7 +12,6 @@ if (!supabase) {
   console.warn("Supabase client could not be initialized. Falling back to local storage.")
 }
 
-// Helper to determine if we should use Supabase
 const useSupabase = () => {
   return !!supabase
 }
@@ -28,7 +27,10 @@ export async function getServices() {
         .select("*")
         .order("created_at", { ascending: true })
       if (error) throw error
-      if (data && data.length > 0) return data
+      if (data && data.length > 0) return data.map(s => ({
+        ...s,
+        image_url: s.image_url || null
+      }))
     } catch (e) {
       console.error("Error fetching services from Supabase, falling back:", e)
     }
@@ -182,7 +184,6 @@ export async function getAppointments() {
         .select("*")
         .order("created_at", { ascending: false })
       if (error) throw error
-      // Map database camelCase/snake_case differences
       return data.map(app => ({
         id: app.id,
         clientName: app.client_name,
@@ -551,4 +552,122 @@ export async function incrementPromoCodeUses(code) {
   const updated = promos.map(p => p.code === code ? { ...p, currentUses: (p.currentUses || 0) + 1 } : p)
   setStoredData("promo_codes", updated)
   return true;
+}
+
+// -------------------------------------------------------------
+// IMAGE UPLOAD (Supabase Storage)
+// -------------------------------------------------------------
+export async function uploadImage(file, bucket = "gallery") {
+  if (!useSupabase()) {
+    console.warn("Supabase not available for image upload")
+    // Fallback: create object URL for local preview
+    return URL.createObjectURL(file)
+  }
+  try {
+    const fileExt = file.name.split(".").pop()
+    const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`
+
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, file, { cacheControl: "3600", upsert: false })
+    if (error) throw error
+
+    const { data: urlData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(fileName)
+
+    return urlData?.publicUrl || null
+  } catch (e) {
+    console.error(`Error uploading image to ${bucket}:`, e)
+    return null
+  }
+}
+
+export async function deleteStorageFile(url, bucket = "gallery") {
+  if (!useSupabase() || !url) return false
+  try {
+    const parts = url.split(`/storage/v1/object/public/${bucket}/`)
+    if (parts.length < 2) return false
+    const filePath = parts[1]
+    const { error } = await supabase.storage.from(bucket).remove([filePath])
+    if (error) throw error
+    return true
+  } catch (e) {
+    console.error("Error deleting storage file:", e)
+    return false
+  }
+}
+
+// -------------------------------------------------------------
+// GALLERY IMAGES (CRUD)
+// -------------------------------------------------------------
+export async function getGalleryImages() {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from("gallery_images")
+        .select("*")
+        .order("created_at", { ascending: false })
+      if (error) throw error
+      return data.map(img => ({
+        id: img.id,
+        title: img.title,
+        description: img.description || "",
+        category: img.category || "Salon",
+        image_url: img.image_url,
+        image: img.image_url,
+        created_at: img.created_at
+      }))
+    } catch (e) {
+      console.error("Error fetching gallery images:", e)
+    }
+  }
+  return getStoredData("gallery_images", [])
+}
+
+export async function addGalleryImage(image) {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from("gallery_images")
+        .insert([{
+          title: image.title,
+          description: image.description || "",
+          category: image.category || "Salon",
+          image_url: image.image_url
+        }])
+        .select()
+      if (error) throw error
+      return { ...data[0], image: data[0].image_url }
+    } catch (e) {
+      console.error("Error adding gallery image:", e)
+    }
+  }
+  const images = getStoredData("gallery_images", [])
+  const newImg = { ...image, id: Date.now().toString(), image: image.image_url, created_at: new Date().toISOString() }
+  images.unshift(newImg)
+  setStoredData("gallery_images", images)
+  return newImg
+}
+
+export async function deleteGalleryImage(id, imageUrl) {
+  if (imageUrl) {
+    await deleteStorageFile(imageUrl, "gallery")
+  }
+  if (useSupabase()) {
+    try {
+      const { error } = await supabase
+        .from("gallery_images")
+        .delete()
+        .eq("id", id)
+      if (error) throw error
+      return true
+    } catch (e) {
+      console.error("Error deleting gallery image:", e)
+    }
+  }
+  const images = getStoredData("gallery_images", [])
+  const filtered = images.filter(img => img.id !== id)
+  setStoredData("gallery_images", filtered)
+  return true
 }

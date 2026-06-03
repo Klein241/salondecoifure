@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+﻿import React, { useState, useEffect } from "react"
 import { servicesList, staffList, getStoredData } from "../data"
 import { Calendar as CalendarIcon, Clock, Star, Check, Sparkles, AlertCircle } from "lucide-react"
 import confetti from "canvas-confetti"
@@ -111,12 +111,13 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
   const bookedSlots = getBookedSlots();
 
   // Validate discount code
-  const handleValidateReferral = () => {
-    const typedCode = clientInfo.affiliateCode.trim().toLowerCase();
+  const handleValidateReferral = async () => {
+    const typedCode = clientInfo.affiliateCode.trim().toUpperCase();
+    const typedCodeLower = typedCode.toLowerCase();
     if (!typedCode) return;
 
-    // 1. Check if it's an affiliate code
-    const affMatch = affiliates.find(aff => aff.code.toLowerCase() === typedCode);
+    // 1. Check if it is an affiliate/parrainage code
+    const affMatch = affiliates.find(aff => aff.code.toLowerCase() === typedCodeLower);
     if (affMatch) {
       if (currentUser && currentUser.email.toLowerCase() === affMatch.clientEmail.toLowerCase()) {
         setErrorMsg("Vous ne pouvez pas utiliser votre propre code de parrainage !");
@@ -124,12 +125,9 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
         setAppliedAffiliate(null);
         return;
       }
-
-      // Resolve referrer name
       const profileMatch = allProfiles.find(p => p.email.toLowerCase() === affMatch.clientEmail.toLowerCase());
       const referrerName = profileMatch ? profileMatch.name : (affMatch.clientName || affMatch.clientEmail);
-      
-      setReferralDiscount(0.1); // 10% discount
+      setReferralDiscount(0.1);
       setAppliedAffiliate(referrerName);
       setPromoDiscount(0);
       setAppliedPromo(null);
@@ -137,36 +135,37 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
       return;
     }
 
-    // 2. Check if it's a promo code
-    const promoMatch = promoCodes.find(p => p.code.toLowerCase() === typedCode);
-    if (promoMatch) {
-      if (!promoMatch.isActive) {
-        setErrorMsg("Ce code promo est inactif.");
-        setPromoDiscount(0);
-        setAppliedPromo(null);
-        return;
-      }
-      if (promoMatch.currentUses >= promoMatch.maxUses) {
-        setErrorMsg("Ce code promo a expiré (nombre maximal d'utilisations atteint).");
-        setPromoDiscount(0);
-        setAppliedPromo(null);
-        return;
-      }
-
-      setPromoDiscount(promoMatch.discountPercent / 100);
-      setAppliedPromo(promoMatch);
-      setReferralDiscount(0);
-      setAppliedAffiliate(null);
-      setErrorMsg("");
+    // 2. Check promo codes — STRICTLY from Supabase only
+    // Never accept codes not created by admin
+    if (promoCodes.length === 0 && !supabase) {
+      setErrorMsg("Code invalide ou non autorise. Seuls les codes generés par l'administration sont acceptés.");
+      setReferralDiscount(0); setPromoDiscount(0); setAppliedPromo(null); setAppliedAffiliate(null);
       return;
     }
 
-    setErrorMsg("Code de réduction ou de parrainage invalide.");
+    const promoMatch = promoCodes.find(p => p.code.toLowerCase() === typedCodeLower);
+    if (!promoMatch) {
+      setErrorMsg("Code invalide ou non autorisé. Seuls les codes générés par l'administration sont acceptés.");
+      setReferralDiscount(0); setPromoDiscount(0); setAppliedPromo(null); setAppliedAffiliate(null);
+      return;
+    }
+    if (!promoMatch.isActive) {
+      setErrorMsg("Ce code promo est inactif.");
+      setPromoDiscount(0); setAppliedPromo(null);
+      return;
+    }
+    if (promoMatch.currentUses >= promoMatch.maxUses) {
+      setErrorMsg("Ce code promo a expiré (nombre maximal d'utilisations atteint).");
+      setPromoDiscount(0); setAppliedPromo(null);
+      return;
+    }
+    setPromoDiscount(promoMatch.discountPercent / 100);
+    setAppliedPromo(promoMatch);
     setReferralDiscount(0);
-    setPromoDiscount(0);
-    setAppliedPromo(null);
     setAppliedAffiliate(null);
+    setErrorMsg("");
   };
+
 
   const handleServiceSelect = (service) => {
     setSelectedService(service);
@@ -782,4 +781,5 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
     </section>
   );
 }
+
 
