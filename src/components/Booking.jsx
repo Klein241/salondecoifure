@@ -4,7 +4,7 @@ import { Calendar as CalendarIcon, Clock, Star, Check, Sparkles, AlertCircle } f
 import confetti from "canvas-confetti"
 import { getServices, getStaff, getAppointments, createAppointment, getAffiliates, saveAffiliate, getPromoCodes, incrementPromoCodeUses, supabase } from "../supabase"
 
-export default function Booking({ preSelectedService, currentUser, onBookingSuccess }) {
+export default function Booking({ preSelectedService, currentUser, onBookingSuccess, siteSettings = { allow_specialist_selection: true } }) {
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(null);
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -290,7 +290,7 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
               padding: "0 10px",
             }}
           >
-            {[1, 2, 3, 4].map((s) => (
+            {(siteSettings.allow_specialist_selection ? [1, 2, 3, 4] : [1, 2, 3]).map((s) => (
               <div key={s} style={{ display: "flex", alignItems: "center", flex: s < 4 ? 1 : "none" }}>
                 <button
                   onClick={() => s < step && setStep(s)}

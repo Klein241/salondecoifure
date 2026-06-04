@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Menu, X, User, Award, ShieldAlert, Sparkles } from "lucide-react"
+import { Menu, X, User, Award, ShieldAlert, Sparkles, ShoppingBag } from "lucide-react"
 
 export default function Navbar({ currentRoute, currentUser, onLogout, openPortalModal }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,6 +19,7 @@ export default function Navbar({ currentRoute, currentUser, onLogout, openPortal
     { id: "gallery", label: "Galerie" },
     { id: "booking", label: "Réservation", icon: Sparkles },
     { id: "affiliate", label: "Parrainage", icon: Award },
+    { id: "boutique", label: "Boutique", icon: ShoppingBag },
   ];
 
   const handleNavClick = (id) => {
@@ -30,6 +31,7 @@ export default function Navbar({ currentRoute, currentUser, onLogout, openPortal
       booking: "/reservation",
       affiliate: "/parrainage",
       portal: "/EspaceClient",
+      boutique: "/boutique",
       admin: "/admin"
     };
     const targetPath = paths[id] || "/";

@@ -12,6 +12,8 @@ import Footer from "./components/Footer"
 import { supabase } from "./supabase"
 import { Sparkles, Gift } from "lucide-react"
 import WhatsAppButton from "./components/WhatsAppButton"
+import Shop from "./components/Shop"
+import { getSiteSettings } from "./supabase"
 
 const getRoute = (path) => {
   // Decode, trim, remove trailing slashes, lowercase for matching
@@ -28,6 +30,8 @@ const getRoute = (path) => {
 
   if (p === "/parrainage" || p === "/affiliate") return "affiliate";
 
+  if (p === "/boutique" || p === "/shop") return "boutique";
+
   // Admin route: /admin or /admin/anything
   if (p === "/admin" || p.startsWith("/admin/")) return "admin";
 
@@ -40,6 +44,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [referralUrlCode, setReferralUrlCode] = useState("");
+  const [siteSettings, setSiteSettings] = useState({ allow_specialist_selection: true, whatsapp: '+241077004073', site_name: 'The Alpha Beauty' });
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -103,6 +108,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Load site settings
+    getSiteSettings().then(s => {
+      if (s) {
+        setSiteSettings(s);
+        // Apply dynamic favicon
+        if (s.favicon_url) {
+          let link = document.querySelector("link[rel~='icon']");
+          if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+          link.href = s.favicon_url;
+        }
+      }
+    }).catch(() => {});
+
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get("ref");
     if (refCode) {
@@ -247,6 +265,7 @@ export default function App() {
             }}
           />
         )}
+        {currentRoute === "boutique" && <Shop />}
         {currentRoute === "affiliate" && (
           <Affiliate onGoToPortal={handleGoToPortal} />
         )}

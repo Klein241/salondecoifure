@@ -671,3 +671,125 @@ export async function deleteGalleryImage(id, imageUrl) {
   setStoredData("gallery_images", filtered)
   return true
 }
+// -------------------------------------------------------------
+// SITE SETTINGS
+// -------------------------------------------------------------
+export async function getSiteSettings() {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('*')
+        .eq('id', 'main')
+        .single();
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.error('Error fetching site settings:', e);
+    }
+  }
+  return getStoredData('site_settings', {
+    id: 'main',
+    site_name: 'The Alpha Beauty',
+    address: 'Alibadeng, Gabon',
+    phone: '+241 077 00 40 73',
+    whatsapp: '+241077004073',
+    logo_url: null,
+    favicon_url: null,
+    allow_specialist_selection: true
+  });
+}
+
+export async function updateSiteSettings(updates) {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('site_settings')
+        .upsert({ id: 'main', ...updates, updated_at: new Date().toISOString() })
+        .select();
+      if (error) throw error;
+      return data[0];
+    } catch (e) {
+      console.error('Error updating site settings:', e);
+    }
+  }
+  const current = getStoredData('site_settings', {});
+  const updated = { ...current, ...updates };
+  setStoredData('site_settings', updated);
+  return updated;
+}
+
+// -------------------------------------------------------------
+// PRODUCTS (BOUTIQUE)
+// -------------------------------------------------------------
+export async function getProducts() {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.error('Error fetching products:', e);
+    }
+  }
+  return getStoredData('products', []);
+}
+
+export async function addProduct(product) {
+  if (useSupabase()) {
+    try {
+      const { name, description, price, category, image_url, in_stock } = product;
+      const { data, error } = await supabase
+        .from('products')
+        .insert([{ name, description, price: Number(price), category, image_url, in_stock }])
+        .select();
+      if (error) throw error;
+      return data[0];
+    } catch (e) {
+      console.error('Error adding product:', e);
+    }
+  }
+  const products = getStoredData('products', []);
+  const newProd = { ...product, id: Date.now().toString(), created_at: new Date().toISOString() };
+  products.unshift(newProd);
+  setStoredData('products', products);
+  return newProd;
+}
+
+export async function updateProduct(id, updates) {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .update(updates)
+        .eq('id', id)
+        .select();
+      if (error) throw error;
+      return data[0];
+    } catch (e) {
+      console.error('Error updating product:', e);
+    }
+  }
+  const products = getStoredData('products', []);
+  const updated = products.map(p => p.id === id ? { ...p, ...updates } : p);
+  setStoredData('products', updated);
+  return { id, ...updates };
+}
+
+export async function deleteProduct(id) {
+  if (useSupabase()) {
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error('Error deleting product:', e);
+    }
+  }
+  const products = getStoredData('products', []);
+  setStoredData('products', products.filter(p => p.id !== id));
+  return true;
+}

@@ -32,7 +32,7 @@ export default function Admin({ currentUser, onLogout }) {
   const [promoSearch, setPromoSearch] = useState("");
 
   const [showPromoForm, setShowPromoForm] = useState(false);
-  const [promoForm, setPromoForm] = useState({ code: "", clientName: "", discountPercent: 20, maxUses: 1 });
+  const [promoForm, setPromoForm] = useState({ code: "", clientName: "", discountPercent: 20, maxUses: 1, promoType: "unique" });
 
   // Modals / Forms states
   const [selectedClient, setSelectedClient] = useState(null);
@@ -55,6 +55,22 @@ export default function Admin({ currentUser, onLogout }) {
   const [galleryUploadFile, setGalleryUploadFile] = useState(null);
   const [galleryUploadPreview, setGalleryUploadPreview] = useState("");
   const [galleryUploading, setGalleryUploading] = useState(false);
+
+
+  // Products (boutique) states
+  const [products, setProducts] = useState([]);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [productForm, setProductForm] = useState({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true });
+  const [productImageFile, setProductImageFile] = useState(null);
+  const [productImagePreview, setProductImagePreview] = useState('');
+  const [productUploading, setProductUploading] = useState(false);
+
+  // Site settings state
+  const [siteSettings, setSiteSettings] = useState({ site_name: 'The Alpha Beauty', address: 'Alibadeng, Gabon', phone: '+241 077 00 40 73', whatsapp: '+241077004073', logo_url: '', favicon_url: '', allow_specialist_selection: true });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [logoFile, setLogoFile] = useState(null);
+  const [faviconFile, setFaviconFile] = useState(null);
 
   // Service image upload states
   const [serviceImageFile, setServiceImageFile] = useState(null);
@@ -295,7 +311,7 @@ export default function Admin({ currentUser, onLogout }) {
     await createPromoCode(newPromo);
     setMessage({ text: "Code promo généré avec succès !", type: "success" });
     setShowPromoForm(false);
-    setPromoForm({ code: "", clientName: "", discountPercent: 20, maxUses: 1 });
+    setPromoForm({ code: "", clientName: "", discountPercent: 20, maxUses: 1, promoType: "unique" });
     loadAllData();
   };
 
@@ -390,6 +406,93 @@ export default function Admin({ currentUser, onLogout }) {
     setShowGalleryForm(false);
     setGalleryUploading(false);
     loadAllData();
+  };
+
+
+  const handleProductImageChange = (e) => {
+    const f = e.target.files[0];
+    if (f) {
+      setProductImageFile(f);
+      const reader = new FileReader();
+      reader.onload = (ev) => setProductImagePreview(ev.target.result);
+      reader.readAsDataURL(f);
+    }
+  };
+
+  const handleSaveProduct = async (e) => {
+    e.preventDefault();
+    setProductUploading(true);
+    let image_url = productForm.image_url || null;
+    if (productImageFile) {
+      setMessage({ text: 'Upload image produit...', type: 'info' });
+      const uploaded = await uploadImage(productImageFile, 'product-images');
+      if (uploaded) image_url = uploaded;
+    }
+    const formatted = { ...productForm, price: Number(productForm.price), image_url };
+    if (editingProduct) {
+      const result = await updateProduct(editingProduct.id, formatted);
+      if (result) setMessage({ text: 'Produit mis a jour !', type: 'success' });
+      else setMessage({ text: 'Erreur lors de la mise a jour.', type: 'error' });
+    } else {
+      const result = await addProduct(formatted);
+      if (result) setMessage({ text: 'Produit ajoute !', type: 'success' });
+      else setMessage({ text: 'Erreur lors de l\'ajout.', type: 'error' });
+    }
+    setShowProductForm(false);
+    setEditingProduct(null);
+    setProductForm({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true });
+    setProductImageFile(null);
+    setProductImagePreview('');
+    setProductUploading(false);
+    loadAllData();
+  };
+
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setProductForm({
+      name: product.name,
+      description: product.description || '',
+      price: product.price,
+      category: product.category || 'Soin',
+      image_url: product.image_url || '',
+      in_stock: product.in_stock !== false
+    });
+    setProductImagePreview(product.image_url || '');
+    setProductImageFile(null);
+    setShowProductForm(true);
+  };
+
+  const handleDeleteProduct = async (id) => {
+    if (!window.confirm('Supprimer ce produit ?')) return;
+    await deleteProduct(id);
+    setMessage({ text: 'Produit supprime.', type: 'success' });
+    loadAllData();
+  };
+
+  const handleSaveSiteSettings = async (e) => {
+    e.preventDefault();
+    setSettingsSaving(true);
+    let updates = { ...siteSettings };
+    if (logoFile) {
+      setMessage({ text: 'Upload logo...', type: 'info' });
+      const url = await uploadImage(logoFile, 'site-assets');
+      if (url) updates.logo_url = url;
+    }
+    if (faviconFile) {
+      setMessage({ text: 'Upload favicon...', type: 'info' });
+      const url = await uploadImage(faviconFile, 'site-assets');
+      if (url) updates.favicon_url = url;
+    }
+    const result = await updateSiteSettings(updates);
+    if (result) {
+      setMessage({ text: 'Parametres du site sauvegardes !', type: 'success' });
+      setSiteSettings({ ...siteSettings, ...updates });
+    } else {
+      setMessage({ text: 'Erreur lors de la sauvegarde.', type: 'error' });
+    }
+    setLogoFile(null);
+    setFaviconFile(null);
+    setSettingsSaving(false);
   };
 
   const handleDeleteGalleryImage = async (id, image_url) => {
@@ -1176,6 +1279,118 @@ export default function Admin({ currentUser, onLogout }) {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+
+        {/* TAB: BOUTIQUE */}
+        {activeTab === "boutique" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 className="gold-text" style={{ fontSize: "1.4rem", marginBottom: "4px" }}>Gestion de la Boutique</h3>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{products.length} produit{products.length !== 1 ? "s" : ""} dans la boutique</p>
+              </div>
+              <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true }); setProductImageFile(null); setProductImagePreview(''); setShowProductForm(true); }} className="btn-gold" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Plus size={16} /> Ajouter un Produit
+              </button>
+            </div>
+
+            {/* Product Form Modal */}
+            {showProductForm && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
+                <form onSubmit={handleSaveProduct} className="glass-panel" style={{ maxWidth: "520px", width: "100%", padding: "32px", border: "1px solid var(--primary-gold)", display: "flex", flexDirection: "column", gap: "16px", maxHeight: "90vh", overflowY: "auto" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h3 className="gold-text">{editingProduct ? "Modifier le produit" : "Nouveau Produit"}</h3>
+                    <button type="button" onClick={() => setShowProductForm(false)} style={{ background: "none", border: "none", color: "var(--primary-gold)", cursor: "pointer" }}><X size={20} /></button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Nom du produit * :</label>
+                    <input required value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} placeholder="ex: Serum Eclat Or" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Description :</label>
+                    <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} rows="3" placeholder="Decrivez ce produit..." style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none", resize: "vertical" }} />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Prix (FCFA) * :</label>
+                      <input required type="number" min="0" value={productForm.price} onChange={e => setProductForm({ ...productForm, price: e.target.value })} placeholder="15000" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Categorie :</label>
+                      <select value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })} style={{ padding: "10px", background: "#121212", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}>
+                        {["Soin", "Maquillage", "Parfum", "Cheveux", "Corps", "Accessoire"].map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Image du produit :</label>
+                    <input type="file" accept="image/*" onChange={handleProductImageChange} style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }} />
+                    {productImagePreview && <img src={productImagePreview} alt="preview" style={{ width: "100%", height: "160px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(212,175,55,0.4)" }} />}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>— OU — URL de l'image :</label>
+                    <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} placeholder="https://example.com/produit.jpg" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.9rem" }}>
+                    <input type="checkbox" checked={productForm.in_stock} onChange={e => setProductForm({ ...productForm, in_stock: e.target.checked })} />
+                    <span style={{ color: productForm.in_stock ? "#228B22" : "#FF4500" }}>{productForm.in_stock ? "En stock" : "Hors stock"}</span>
+                  </label>
+
+                  <button type="submit" className="btn-gold" disabled={productUploading} style={{ marginTop: "8px", opacity: productUploading ? 0.7 : 1 }}>
+                    {productUploading ? "Sauvegarde en cours..." : editingProduct ? "Mettre a jour" : "Ajouter le produit"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Products Grid */}
+            {products.length === 0 ? (
+              <div className="glass-panel" style={{ padding: "60px", textAlign: "center", border: "1px dashed rgba(212,175,55,0.2)" }}>
+                <Package size={40} style={{ color: "rgba(212,175,55,0.2)", marginBottom: "12px" }} />
+                <p style={{ color: "var(--text-secondary)" }}>Aucun produit dans la boutique. Ajoutez votre premier produit.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
+                {products.map(product => (
+                  <div key={product.id} className="glass-panel" style={{ padding: 0, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px" }}>
+                    <div style={{ height: "180px", overflow: "hidden", background: "rgba(212,175,55,0.04)", position: "relative" }}>
+                      {product.image_url
+                        ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={40} style={{ color: "rgba(212,175,55,0.2)" }} /></div>
+                      }
+                      <span style={{ position: "absolute", top: "10px", left: "10px", background: product.in_stock !== false ? "rgba(34,139,34,0.85)" : "rgba(178,34,34,0.85)", color: "#fff", padding: "3px 8px", borderRadius: "12px", fontSize: "0.68rem", fontWeight: "700" }}>
+                        {product.in_stock !== false ? "En stock" : "Hors stock"}
+                      </span>
+                    </div>
+                    <div style={{ padding: "16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                        <div>
+                          <h4 style={{ fontWeight: "600", fontSize: "0.95rem", marginBottom: "2px" }}>{product.name}</h4>
+                          <span style={{ fontSize: "0.7rem", color: "var(--primary-gold)", textTransform: "uppercase" }}>{product.category}</span>
+                        </div>
+                        <span style={{ fontSize: "1.1rem", fontWeight: "700", color: "var(--primary-gold)", whiteSpace: "nowrap" }}>{Number(product.price).toLocaleString("fr-FR")} F</span>
+                      </div>
+                      {product.description && <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: "14px", lineHeight: "1.4" }}>{product.description.substring(0, 80)}{product.description.length > 80 ? "..." : ""}</p>}
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button onClick={() => handleEditProduct(product)} className="btn-outline" style={{ flex: 1, fontSize: "0.75rem", padding: "6px 10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          <Edit size={13} /> Modifier
+                        </button>
+                        <button onClick={() => handleDeleteProduct(product.id)} style={{ padding: "6px 10px", background: "none", border: "1px solid rgba(255,69,0,0.3)", borderRadius: "4px", color: "#FF4500", cursor: "pointer" }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
