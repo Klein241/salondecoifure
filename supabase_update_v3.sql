@@ -1,8 +1,6 @@
 -- ================================================================
--- THE ALPHA BEAUTY - SCRIPT COMPLET V3
+-- THE ALPHA BEAUTY - SCRIPT COMPLET V3 (CORRIGE)
 -- Execute ce script entier dans le SQL Editor de Supabase
--- Il supprime d'abord TOUTES les politiques existantes avant
--- de les recreer proprement.
 -- ================================================================
 
 -- ETAPE 1: Supprimer toutes les politiques storage existantes
@@ -15,17 +13,39 @@ BEGIN
   END LOOP;
 END $$;
 
--- ETAPE 2: Supprimer toutes les politiques des tables applicatives
-DROP POLICY IF EXISTS "Lecture publique de la galerie" ON public.gallery_images;
-DROP POLICY IF EXISTS "Admin modifie la galerie" ON public.gallery_images;
-DROP POLICY IF EXISTS "pub_select_gallery_images" ON public.gallery_images;
-DROP POLICY IF EXISTS "admin_all_gallery_images" ON public.gallery_images;
-DROP POLICY IF EXISTS "pub_select_services" ON public.services;
-DROP POLICY IF EXISTS "admin_all_services" ON public.services;
-DROP POLICY IF EXISTS "pub_select_products" ON public.products;
-DROP POLICY IF EXISTS "admin_all_products" ON public.products;
-DROP POLICY IF EXISTS "pub_select_settings" ON public.site_settings;
-DROP POLICY IF EXISTS "admin_update_settings" ON public.site_settings;
+-- ETAPE 2: Supprimer les politiques des tables QUI EXISTENT deja
+DO $$
+DECLARE pol RECORD;
+BEGIN
+  -- gallery_images
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='gallery_images') THEN
+    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'gallery_images'
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.gallery_images', pol.policyname);
+    END LOOP;
+  END IF;
+  -- services
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='services') THEN
+    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'services'
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.services', pol.policyname);
+    END LOOP;
+  END IF;
+  -- products
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='products') THEN
+    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'products'
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.products', pol.policyname);
+    END LOOP;
+  END IF;
+  -- site_settings
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='site_settings') THEN
+    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'site_settings'
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.site_settings', pol.policyname);
+    END LOOP;
+  END IF;
+END $$;
 
 -- ETAPE 3: Recreer la fonction is_admin
 CREATE OR REPLACE FUNCTION public.is_admin()
@@ -37,7 +57,7 @@ BEGIN
   );
 END; $$;
 
--- ETAPE 4: Definir le role admin (mettez votre email)
+-- ETAPE 4: Definir le role admin
 INSERT INTO public.profiles (id, email, name, role, created_at)
 SELECT au.id, au.email, COALESCE(au.raw_user_meta_data->>'name', 'Admin'), 'admin', NOW()
 FROM auth.users au
@@ -74,11 +94,12 @@ CREATE POLICY "admin_ins_assets" ON storage.objects FOR INSERT TO authenticated 
 CREATE POLICY "admin_upd_assets" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'site-assets' AND public.is_admin());
 CREATE POLICY "admin_del_assets" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'site-assets' AND public.is_admin());
 
--- ETAPE 10: Politiques gallery_images
+-- ETAPE 10: RLS gallery_images
+ALTER TABLE public.gallery_images ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "pub_sel_gallery_img" ON public.gallery_images FOR SELECT USING (true);
 CREATE POLICY "admin_all_gallery_img" ON public.gallery_images FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 
--- ETAPE 11: Politiques services (activer RLS)
+-- ETAPE 11: RLS services
 ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "pub_sel_services" ON public.services FOR SELECT USING (true);
 CREATE POLICY "admin_all_services" ON public.services FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
@@ -101,7 +122,7 @@ ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "pub_sel_products" ON public.products FOR SELECT USING (true);
 CREATE POLICY "admin_all_products" ON public.products FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 
--- ETAPE 14: Creer la table site_settings (parametres du site)
+-- ETAPE 14: Creer la table site_settings
 CREATE TABLE IF NOT EXISTS public.site_settings (
   id text PRIMARY KEY DEFAULT 'main',
   site_name text DEFAULT 'The Alpha Beauty',
@@ -123,6 +144,6 @@ VALUES ('main', 'The Alpha Beauty', 'Alibadeng, Gabon', '+241 077 00 40 73', '+2
 ON CONFLICT (id) DO NOTHING;
 
 -- VERIFICATION FINALE
-SELECT 'ADMIN DEFINI:' as info, id, email, role FROM public.profiles WHERE role = 'admin';
-SELECT 'PARAMETRES:' as info, id, site_name, allow_specialist_selection FROM public.site_settings;
-SELECT 'BUCKETS:' as info, id, name, public FROM storage.buckets WHERE id IN ('gallery','service-images','product-images','site-assets');
+SELECT 'ADMIN:' as info, email, role FROM public.profiles WHERE role = 'admin';
+SELECT 'SETTINGS:' as info, site_name, allow_specialist_selection FROM public.site_settings;
+SELECT 'BUCKETS:' as info, id, public FROM storage.buckets WHERE id IN ('gallery','service-images','product-images','site-assets');
