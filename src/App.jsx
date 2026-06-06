@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import Navbar from "./components/Navbar"
 import Hero from "./components/Hero"
 import Services from "./components/Services"
@@ -203,7 +203,7 @@ export default function App() {
 
     return (
       <div style={{ background: "#0b0b0b", minHeight: "100vh" }}>
-        {currentUser && currentUser.role === "admin" ? (
+        {currentUser && (currentUser.role === "admin" || currentUser.role === "superadmin") ? (
           <Admin currentUser={currentUser} onLogout={handleLogout} />
         ) : (
           <AdminLogin onLoginSuccess={handleLoginSuccess} />
@@ -232,7 +232,7 @@ export default function App() {
         zIndex: 1001,
       }}>
         <Gift size={14} />
-        <span>SPECIAL FETE DES MERES : Celebrons les mamans d'Alibadeng ! Obtenez -10% de reduction en utilisant un code parrainage.</span>
+        <span>{siteSettings?.promo_banner || "PROGRAMME FIDÉLITÉ : Accumulez des points à chaque visite et bénéficiez de réductions exclusives. Code parrainage = -10%."}</span>
         <Sparkles size={12} />
       </div>
 
@@ -255,9 +255,10 @@ export default function App() {
           <Booking
             preSelectedService={preSelectedService}
             currentUser={currentUser}
+            siteSettings={siteSettings}
             onBookingSuccess={() => {
               setPreSelectedService(null);
-              if (currentUser && currentUser.role !== "admin") {
+              if (currentUser && currentUser.role !== "admin" && currentUser.role !== "superadmin") {
                 window.history.pushState({}, "", "/EspaceClient");
               } else {
                 window.history.pushState({}, "", "/");

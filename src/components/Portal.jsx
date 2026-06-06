@@ -10,6 +10,8 @@ import {
   getReviews,
   createReview
 } from "../supabase"
+import { getProducts, getGalleryImages, getPromoCodes } from "../supabase"
+import Fidelite from "./Fidelite"
 import {
   User,
   Calendar,
@@ -29,7 +31,16 @@ import {
   Shield,
   Phone,
   Mail,
-  ChevronDown
+  ChevronDown,
+  Gem,
+  ShoppingBag,
+  Image,
+  Tag,
+  MessageCircle,
+  Package,
+  Plus,
+  Minus,
+  ExternalLink
 } from "lucide-react"
 
 export default function Portal({ currentUser, onLoginSuccess }) {
@@ -45,6 +56,14 @@ export default function Portal({ currentUser, onLoginSuccess }) {
 
   // Tab Navigation
   const [activeTab, setActiveTab] = useState("appointments");
+
+  // Shop / Gallery / Promos state
+  const [shopProducts, setShopProducts] = useState([]);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [promoCodes, setPromoCodes] = useState([]);
+  const [shopCart, setShopCart] = useState([]);
+  const [showShopCart, setShowShopCart] = useState(false);
+  const [shopSettings, setShopSettings] = useState(null);
   const [reviews, setReviews] = useState([]);
 
   // Profile Edit
@@ -509,9 +528,13 @@ export default function Portal({ currentUser, onLoginSuccess }) {
         {/* Tab Navigation */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "35px", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "10px", overflowX: "auto", position: "sticky", top: "70px", zIndex: 90, background: "#0b0b0b" }}>
           {[
-            { id: "appointments", label: "Mes Rendez-vous", icon: Calendar },
-            { id: "profile", label: "Mon Profil", icon: User },
-            { id: "referral", label: "Parrainage & Fidélité", icon: Award },
+            { id: "appointments", label: "Mes RDV", icon: Calendar },
+            { id: "fidelite", label: "Portefeuille", icon: Gem },
+            { id: "shop", label: "Boutique", icon: ShoppingBag },
+            { id: "gallery", label: "Galerie", icon: Image },
+            { id: "promos", label: "Promos", icon: Tag },
+            { id: "profile", label: "Profil", icon: User },
+            { id: "referral", label: "Parrainage", icon: Award },
           ].map(tab => (
             <button
               key={tab.id}
@@ -765,6 +788,36 @@ export default function Portal({ currentUser, onLoginSuccess }) {
               </div>
             )}
           </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB FIDÉLITÉ : PORTEFEUILLE */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "fidelite" && (
+          <div className="slide-up">
+            <Fidelite currentUser={currentUser} />
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB BOUTIQUE */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "shop" && (
+          <ShopTab currentUser={currentUser} />
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB GALERIE */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "gallery" && (
+          <GalleryTab />
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB PROMOS */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "promos" && (
+          <PromosTab />
         )}
 
         {/* ------------------------------------------------------------- */}

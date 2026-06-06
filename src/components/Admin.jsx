@@ -1,15 +1,19 @@
-﻿import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { 
   LayoutDashboard, Calendar, Users, Scissors, Award, Settings, 
-  Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image
+  Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image, Gem,
+  Package, ShoppingBag
 } from "lucide-react"
+import AdminFidelite from "./AdminFidelite"
 import { 
   getAppointments, updateAppointmentStatus, deleteAppointment,
   getServices, addService, updateService, deleteService,
   getStaff, addStaff, deleteStaff,
   getAffiliates, saveAffiliate, supabase,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
-  uploadImage, addGalleryImage, deleteGalleryImage, getGalleryImages
+  uploadImage, addGalleryImage, deleteGalleryImage, getGalleryImages,
+  getProducts, addProduct, updateProduct, deleteProduct,
+  getSiteSettings, updateSiteSettings
 } from "../supabase"
 
 export default function Admin({ currentUser, onLogout }) {
@@ -101,6 +105,16 @@ export default function Admin({ currentUser, onLogout }) {
       // Load gallery images
       const gallery = await getGalleryImages();
       setGalleryImages(gallery || []);
+
+      // Load products (boutique)
+      const prods = await getProducts();
+      setProducts(prods || []);
+
+      // Load site settings
+      const settings = await getSiteSettings();
+      if (settings) {
+        setSiteSettings(settings);
+      }
 
       // Load clients from profiles table in Supabase
       if (supabase) {
@@ -575,9 +589,11 @@ export default function Admin({ currentUser, onLogout }) {
             { id: "appointments", label: "Rendez-vous", icon: Calendar },
             { id: "clients", label: "Clients", icon: Users },
             { id: "services", label: "Services (CRUD)", icon: Scissors },
+            { id: "boutique", label: "Boutique", icon: ShoppingBag },
             { id: "gallery", label: "Galerie", icon: Image },
             { id: "promo_codes", label: "Codes Promo", icon: Tag },
             { id: "affiliates", label: "Affiliés", icon: Award },
+            { id: "fidelite", label: "Fidélité", icon: Gem },
             { id: "settings", label: "Paramètres", icon: Settings }
           ].map(tab => (
             <button
@@ -1569,6 +1585,114 @@ export default function Admin({ currentUser, onLogout }) {
         {activeTab === "settings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
             
+            {/* Site Settings Section */}
+            <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <h3 className="gold-text" style={{ marginBottom: "20px" }}>Paramètres du Site</h3>
+              <form onSubmit={handleSaveSiteSettings} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Nom du site :</label>
+                    <input
+                      type="text"
+                      value={siteSettings.site_name || ""}
+                      onChange={e => setSiteSettings({ ...siteSettings, site_name: e.target.value })}
+                      style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Adresse :</label>
+                    <input
+                      type="text"
+                      value={siteSettings.address || ""}
+                      onChange={e => setSiteSettings({ ...siteSettings, address: e.target.value })}
+                      style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Téléphone :</label>
+                    <input
+                      type="text"
+                      value={siteSettings.phone || ""}
+                      onChange={e => setSiteSettings({ ...siteSettings, phone: e.target.value })}
+                      style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>WhatsApp (Format International, ex: +241077004073) :</label>
+                    <input
+                      type="text"
+                      value={siteSettings.whatsapp || ""}
+                      onChange={e => setSiteSettings({ ...siteSettings, whatsapp: e.target.value })}
+                      style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Bandeau Promotionnel (Texte défilant en haut du site) :</label>
+                  <input
+                    type="text"
+                    placeholder="PROGRAMME FIDÉLITÉ : Accumulez des points à chaque visite..."
+                    value={siteSettings.promo_banner || ""}
+                    onChange={e => setSiteSettings({ ...siteSettings, promo_banner: e.target.value })}
+                    style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Logo (Fichier image) :</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => setLogoFile(e.target.files[0])}
+                      style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}
+                    />
+                    {siteSettings.logo_url && (
+                      <img src={siteSettings.logo_url} alt="Logo" style={{ height: "40px", objectFit: "contain", alignSelf: "flex-start", marginTop: "8px", border: "1px solid rgba(255,255,255,0.1)", padding: "4px", borderRadius: "4px" }} />
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Favicon (Fichier image) :</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => setFaviconFile(e.target.files[0])}
+                      style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}
+                    />
+                    {siteSettings.favicon_url && (
+                      <img src={siteSettings.favicon_url} alt="Favicon" style={{ height: "32px", width: "32px", objectFit: "contain", alignSelf: "flex-start", marginTop: "8px", border: "1px solid rgba(255,255,255,0.1)", padding: "4px", borderRadius: "4px" }} />
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
+                  <input
+                    type="checkbox"
+                    id="allow_specialist"
+                    checked={siteSettings.allow_specialist_selection !== false}
+                    onChange={e => setSiteSettings({ ...siteSettings, allow_specialist_selection: e.target.checked })}
+                    style={{ cursor: "pointer" }}
+                  />
+                  <label htmlFor="allow_specialist" style={{ fontSize: "0.9rem", color: "var(--text-primary)", cursor: "pointer" }}>
+                    Autoriser les clients à choisir un praticien lors de la réservation
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={settingsSaving}
+                  className="btn-gold"
+                  style={{ width: "fit-content", padding: "10px 24px", marginTop: "10px", alignSelf: "flex-start" }}
+                >
+                  {settingsSaving ? "Sauvegarde..." : "Enregistrer les Paramètres"}
+                </button>
+              </form>
+            </div>
+
             {/* Staff Management Section */}
             <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -1639,6 +1763,13 @@ export default function Admin({ currentUser, onLogout }) {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* TAB FIDÉLITÉ */}
+        {activeTab === "fidelite" && (
+          <div>
+            <AdminFidelite currentUser={currentUser} />
           </div>
         )}
 

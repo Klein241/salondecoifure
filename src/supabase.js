@@ -696,6 +696,7 @@ export async function getSiteSettings() {
     whatsapp: '+241077004073',
     logo_url: null,
     favicon_url: null,
+    promo_banner: '',
     allow_specialist_selection: true
   });
 }

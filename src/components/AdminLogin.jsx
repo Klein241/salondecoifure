@@ -32,7 +32,7 @@ export default function AdminLogin({ onLoginSuccess }) {
             { name: "Admin Alpha", email: "admin@alpha.com", password: "admin", role: "admin", phone: "077004073" }
           ]);
           const localUser = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-          if (localUser && localUser.role === "admin") {
+          if (localUser && (localUser.role === "admin" || localUser.role === "superadmin")) {
             onLoginSuccess(localUser);
           } else {
             setError("Email ou mot de passe incorrect.");
@@ -56,7 +56,7 @@ export default function AdminLogin({ onLoginSuccess }) {
           role: data.user.user_metadata?.role || "client"
         };
 
-        if (userObj.role === "admin") {
+        if (userObj.role === "admin" || userObj.role === "superadmin") {
           onLoginSuccess(userObj);
         } else {
           // Logout because they are not admin
@@ -70,7 +70,7 @@ export default function AdminLogin({ onLoginSuccess }) {
         ]);
         const matchedUser = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
         if (matchedUser) {
-          if (matchedUser.role === "admin") {
+          if (matchedUser.role === "admin" || matchedUser.role === "superadmin") {
             onLoginSuccess(matchedUser);
           } else {
             setError("Accès refusé. Cet espace est réservé aux administrateurs.");
