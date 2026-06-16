@@ -11,6 +11,7 @@ import {
   createReview
 } from "../supabase"
 import { QRCodeSection } from "./QRCodeGenerator"
+import { useConfirm } from "./ConfirmModal"
 import ShopTab from "./Shop"
 import GalleryTab from "./Gallery"
 import { getProducts, getGalleryImages, getPromoCodes } from "../supabase"
@@ -56,6 +57,7 @@ export default function Portal({ currentUser, onLoginSuccess }) {
   const [affiliate, setAffiliate] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [copied, setCopied] = useState(false);
+  const confirm = useConfirm();
 
   // Tab Navigation
   const [activeTab, setActiveTab] = useState("appointments");
@@ -210,7 +212,8 @@ export default function Portal({ currentUser, onLoginSuccess }) {
   };
 
   const handleCancelAppointment = async (id) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir annuler ce rendez-vous ?")) return;
+    const ok = await confirm({ title: "Annuler ce rendez-vous", message: "Êtes-vous sûr de vouloir annuler ce rendez-vous ? Cette action ne peut pas être annulée.", confirmLabel: "Oui, annuler", danger: true });
+    if (!ok) return;
     await updateAppointmentStatus(id, "Annulé");
     setMessage({ text: "Rendez-vous annulé avec succès.", type: "success" });
     await loadUserData();

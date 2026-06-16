@@ -1,10 +1,11 @@
-ï»¿import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { 
   LayoutDashboard, Calendar, Users, Scissors, Award, Settings, 
   Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image, Gem,
   Package, ShoppingBag
 } from "lucide-react"
 import AdminFidelite from "./AdminFidelite"
+import { useConfirm } from "./ConfirmModal"
 import { getOrdersAdmin } from "../fidelite"
 import StockManager from "./StockManager"
 import { QRCodeSection } from "./QRCodeGenerator"
@@ -29,6 +30,7 @@ export default function Admin({ currentUser, onLogout }) {
   const [affiliates, setAffiliates] = useState([]);
   const [promoCodes, setPromoCodes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const confirm = useConfirm();
   const [message, setMessage] = useState({ text: "", type: "" });
 
   // Filter & Search states
@@ -148,45 +150,48 @@ export default function Admin({ currentUser, onLogout }) {
       }
     } catch (e) {
       console.error("Error loading data:", e);
-      setMessage({ text: "Erreur de chargement des donnÃ©es.", type: "error" });
+      setMessage({ text: "Erreur de chargement des données.", type: "error" });
     }
     setLoading(false);
   };
 
   const handleConfirmApp = async (id) => {
-    await updateAppointmentStatus(id, "ConfirmÃ©");
-    setMessage({ text: "Rendez-vous confirmÃ© !", type: "success" });
+    await updateAppointmentStatus(id, "Confirmé");
+    setMessage({ text: "Rendez-vous confirmé !", type: "success" });
     loadAllData();
   };
 
   const handleCancelApp = async (id) => {
-    await updateAppointmentStatus(id, "AnnulÃ©");
-    setMessage({ text: "Rendez-vous annulÃ©.", type: "success" });
+    await updateAppointmentStatus(id, "Annulé");
+    setMessage({ text: "Rendez-vous annulé.", type: "success" });
     loadAllData();
   };
 
   const handleDeleteApp = async (id) => {
-    if (!window.confirm("Supprimer dÃ©finitivement ce rendez-vous ?")) return;
+    const ok = await confirm({ title: "Supprimer ce rendez-vous", message: "Cette action est irréversible.", confirmLabel: "Supprimer", danger: true });
+    if (!ok) return;
     await deleteAppointment(id);
-    setMessage({ text: "Rendez-vous supprimÃ©.", type: "success" });
+    setMessage({ text: "Rendez-vous supprimé.", type: "success" });
     loadAllData();
   };
 
   const handlePromoteClient = async (id, newRole) => {
-    if (!window.confirm(`Changer le rÃ´le de ce client en ${newRole} ?`)) return;
+    const ok = await confirm({ title: "Changer le role", message: `Attribuer le role "${newRole}" a ce client ?`, confirmLabel: "Confirmer", danger: false });
+    if (!ok) return;
     if (supabase) {
       const { error } = await supabase.from("profiles").update({ role: newRole }).eq("id", id);
       if (error) {
-        setMessage({ text: "Erreur de mise Ã  jour du rÃ´le.", type: "error" });
+        setMessage({ text: "Erreur de mise à jour du rôle.", type: "error" });
         return;
       }
     }
-    setMessage({ text: `Le client a maintenant le rÃ´le ${newRole}.`, type: "success" });
+    setMessage({ text: `Le client a maintenant le rôle ${newRole}.`, type: "success" });
     loadAllData();
   };
 
   const handleDeleteClient = async (id, email) => {
-    if (!window.confirm("Supprimer ce client de la base de donnÃ©es ?")) return;
+    const ok = await confirm({ title: "Supprimer ce client", message: "Le profil sera definitivement supprime.", confirmLabel: "Supprimer", danger: true });
+    if (!ok) return;
     if (supabase) {
       const { error } = await supabase.from("profiles").delete().eq("id", id);
       if (error) {
@@ -194,7 +199,7 @@ export default function Admin({ currentUser, onLogout }) {
         return;
       }
     }
-    setMessage({ text: "Client supprimÃ© avec succÃ¨s.", type: "success" });
+    setMessage({ text: "Client supprimé avec succès.", type: "success" });
     loadAllData();
   };
 
@@ -214,11 +219,11 @@ export default function Admin({ currentUser, onLogout }) {
     };
     if (editingService) {
       await updateService(editingService.id, formatted);
-      setMessage({ text: "Soin mis Ã  jour avec succÃ¨s !", type: "success" });
+      setMessage({ text: "Soin mis à jour avec succès !", type: "success" });
     } else {
       const id = formatted.name.toLowerCase().replace(/\s+/g, "-") + "-" + Math.floor(100 + Math.random() * 900);
       await addService({ ...formatted, id });
-      setMessage({ text: "Soin ajoutÃ© avec succÃ¨s !", type: "success" });
+      setMessage({ text: "Soin ajouté avec succès !", type: "success" });
     }
     setShowServiceForm(false);
     setEditingService(null);
@@ -246,9 +251,10 @@ export default function Admin({ currentUser, onLogout }) {
   };
 
   const handleDeleteService = async (id) => {
-    if (!window.confirm("Supprimer dÃ©finitivement ce soin ?")) return;
+    const ok = await confirm({ title: "Supprimer ce soin", message: "Ce soin sera supprimé définitivement du catalogue.", confirmLabel: "Supprimer", danger: true });
+    if (!ok) return;
     await deleteService(id);
-    setMessage({ text: "Soin supprimÃ©.", type: "success" });
+    setMessage({ text: "Soin supprimé.", type: "success" });
     loadAllData();
   };
 
@@ -263,21 +269,22 @@ export default function Admin({ currentUser, onLogout }) {
       avatar: staffForm.avatar || "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150"
     };
     await addStaff(member);
-    setMessage({ text: "Praticien ajoutÃ© !", type: "success" });
+    setMessage({ text: "Praticien ajouté !", type: "success" });
     setShowStaffForm(false);
     setStaffForm({ id: "", name: "", role: "", avatar: "" });
     loadAllData();
   };
 
   const handleDeleteStaff = async (id) => {
-    if (!window.confirm("Supprimer dÃ©finitivement ce praticien ?")) return;
+    const ok = await confirm({ title: "Supprimer ce praticien", message: "Ce praticien sera supprimé définitivement.", confirmLabel: "Supprimer", danger: true });
+    if (!ok) return;
     await deleteStaff(id);
-    setMessage({ text: "Praticien supprimÃ©.", type: "success" });
+    setMessage({ text: "Praticien supprimé.", type: "success" });
     loadAllData();
   };
 
   const handleAdjustPoints = async (email, currentPoints) => {
-    const amountStr = window.prompt("Saisissez le nouveau solde de points pour cet affiliÃ© :", currentPoints);
+    const amountStr = window.prompt("Saisissez le nouveau solde de points pour cet affilié :", currentPoints);
     if (amountStr === null) return;
     const amount = parseInt(amountStr, 10);
     if (isNaN(amount)) {
@@ -289,7 +296,7 @@ export default function Admin({ currentUser, onLogout }) {
     if (match) {
       const updated = { ...match, pointsEarned: amount };
       await saveAffiliate(updated);
-      setMessage({ text: "Points mis Ã  jour !", type: "success" });
+      setMessage({ text: "Points mis à jour !", type: "success" });
       loadAllData();
     }
   };
@@ -308,18 +315,19 @@ export default function Admin({ currentUser, onLogout }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setMessage({ text: "Exportation CSV rÃ©ussie !", type: "success" });
+    setMessage({ text: "Exportation CSV réussie !", type: "success" });
   };
 
   const handleResetDb = async () => {
-    if (!window.confirm("Voulez-vous vraiment rÃ©initialiser toutes les donnÃ©es de test ? (Cela videra le localStorage et rÃ©initialisera Supabase)")) return;
+    const ok = await confirm({ title: "Reinitialiser les donnees", message: "Toutes les donnees de test seront supprimees. Action irreversible.", confirmLabel: "Reinitialiser", danger: true });
+    if (!ok) return;
     localStorage.clear();
     if (supabase) {
       await supabase.from("appointments").delete().neq("id", "none");
       await supabase.from("affiliates").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("promo_codes").delete().neq("code", "none");
     }
-    setMessage({ text: "Base de donnÃ©es rÃ©initialisÃ©e !", type: "success" });
+    setMessage({ text: "Base de données réinitialisée !", type: "success" });
     loadAllData();
   };
 
@@ -340,14 +348,14 @@ export default function Admin({ currentUser, onLogout }) {
     };
 
     await createPromoCode(newPromo);
-    setMessage({ text: "Code promo gÃ©nÃ©rÃ© avec succÃ¨s !", type: "success" });
+    setMessage({ text: "Code promo généré avec succès !", type: "success" });
     setShowPromoForm(false);
     setPromoForm({ code: "", clientName: "", discountPercent: 20, maxUses: 1, promoType: "unique" });
     loadAllData();
   };
 
   // Stat calculations
-  const confirmedApps = appointments.filter(app => app.status === "ConfirmÃ©" || app.status === "En attente");
+  const confirmedApps = appointments.filter(app => app.status === "Confirmé" || app.status === "En attente");
   const totalCA = confirmedApps.reduce((sum, curr) => sum + curr.price, 0);
   const activeReferralsCount = affiliates.reduce((sum, curr) => sum + (curr.totalReferrals || 0), 0);
 
@@ -359,7 +367,7 @@ export default function Admin({ currentUser, onLogout }) {
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split("T")[0];
       const rev = appointments
-        .filter(app => app.date === dateStr && (app.status === "ConfirmÃ©" || app.status === "En attente"))
+        .filter(app => app.date === dateStr && (app.status === "Confirmé" || app.status === "En attente"))
         .reduce((sum, curr) => sum + curr.price, 0);
       
       const options = { weekday: "short", day: "numeric" };
@@ -496,7 +504,8 @@ export default function Admin({ currentUser, onLogout }) {
   };
 
   const handleDeleteProduct = async (id) => {
-    if (!window.confirm('Supprimer ce produit ?')) return;
+    const ok = await confirm({ title: "Supprimer ce produit", message: "Ce produit sera retiré de la boutique.", confirmLabel: "Supprimer", danger: true });
+    if (!ok) return;
     await deleteProduct(id);
     setMessage({ text: 'Produit supprime.', type: 'success' });
     loadAllData();
@@ -529,7 +538,8 @@ export default function Admin({ currentUser, onLogout }) {
   };
 
   const handleDeleteGalleryImage = async (id, image_url) => {
-    if (!window.confirm("Supprimer cette image de la galerie ?")) return;
+    const ok = await confirm({ title: "Supprimer cette image", message: "Cette image sera supprimée de la galerie et du stockage.", confirmLabel: "Supprimer", danger: true });
+    if (!ok) return;
     await deleteGalleryImage(id, image_url);
     setMessage({ text: "Image supprimee.", type: "success" });
     loadAllData();
@@ -574,11 +584,11 @@ export default function Admin({ currentUser, onLogout }) {
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
             <button onClick={loadAllData} className="btn-outline" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", padding: "8px 14px" }}>
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> {loading ? "Mise Ã  jour..." : "RafraÃ®chir"}
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> {loading ? "Mise à jour..." : "Rafraîchir"}
             </button>
             {onLogout && (
               <button onClick={onLogout} className="btn-outline" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", padding: "8px 14px", border: "1px solid rgba(255, 69, 0, 0.3)", color: "#ff6b6b" }}>
-                <X size={14} /> DÃ©connexion
+                <X size={14} /> Déconnexion
               </button>
             )}
           </div>
@@ -612,9 +622,9 @@ export default function Admin({ currentUser, onLogout }) {
             { id: "stock", label: "Stock", icon: Package },
             { id: "gallery", label: "Galerie", icon: Image },
             { id: "promo_codes", label: "Codes Promo", icon: Tag },
-            { id: "affiliates", label: "AffiliÃ©s", icon: Award },
-            { id: "fidelite", label: "FidÃ©litÃ©", icon: Gem },
-            { id: "settings", label: "ParamÃ¨tres", icon: Settings }
+            { id: "affiliates", label: "Affiliés", icon: Award },
+            { id: "fidelite", label: "Fidélité", icon: Gem },
+            { id: "settings", label: "Paramètres", icon: Settings }
           ].map(tab => (
             <button
               key={tab.id}
@@ -650,22 +660,22 @@ export default function Admin({ currentUser, onLogout }) {
               <div className="glass-panel" style={{ padding: "24px", border: "1px solid rgba(212,175,55,0.12)" }}>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>Chiffre d'Affaires</span>
                 <h3 style={{ fontSize: "2rem", color: "var(--primary-gold)", marginTop: "8px" }}>{totalCA.toLocaleString("fr-FR")} F</h3>
-                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Total des rendez-vous confirmÃ©s ou en attente</p>
+                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Total des rendez-vous confirmés ou en attente</p>
               </div>
               <div className="glass-panel" style={{ padding: "24px", border: "1px solid rgba(212,175,55,0.12)" }}>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>Rendez-vous Actifs</span>
                 <h3 style={{ fontSize: "2rem", marginTop: "8px" }}>{confirmedApps.length}</h3>
-                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Rendez-vous en cours et non annulÃ©s</p>
+                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Rendez-vous en cours et non annulés</p>
               </div>
               <div className="glass-panel" style={{ padding: "24px", border: "1px solid rgba(212,175,55,0.12)" }}>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>Clients EnregistrÃ©s</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>Clients Enregistrés</span>
                 <h3 style={{ fontSize: "2rem", marginTop: "8px" }}>{clients.length}</h3>
-                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Profils uniques en base de donnÃ©es</p>
+                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Profils uniques en base de données</p>
               </div>
               <div className="glass-panel" style={{ padding: "24px", border: "1px solid rgba(212,175,55,0.12)" }}>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>Parrainages Totaux</span>
                 <h3 style={{ fontSize: "2rem", color: "var(--primary-gold)", marginTop: "8px" }}>{activeReferralsCount}</h3>
-                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Codes de parrainage appliquÃ©s</p>
+                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "4px" }}>Codes de parrainage appliqués</p>
               </div>
             </div>
 
@@ -703,7 +713,7 @@ export default function Admin({ currentUser, onLogout }) {
 
               {/* Popular services or practitioner rankings */}
               <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <h3 style={{ fontSize: "1.2rem", marginBottom: "20px" }} className="gold-text">PopularitÃ© des Soins</h3>
+                <h3 style={{ fontSize: "1.2rem", marginBottom: "20px" }} className="gold-text">Popularité des Soins</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {services.slice(0, 4).map(s => {
                     const count = appointments.filter(app => app.serviceId === s.id).length;
@@ -733,7 +743,7 @@ export default function Admin({ currentUser, onLogout }) {
             {/* Toolbar */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "16px" }}>
               <div style={{ display: "flex", gap: "8px" }}>
-                {["Tous", "En attente", "ConfirmÃ©", "AnnulÃ©"].map(status => (
+                {["Tous", "En attente", "Confirmé", "Annulé"].map(status => (
                   <button
                     key={status}
                     onClick={() => setAppFilter(status)}
@@ -784,7 +794,7 @@ export default function Admin({ currentUser, onLogout }) {
               <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                 {getGroupedAppointments().length === 0 ? (
                   <div className="glass-panel" style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>
-                    Aucun rendez-vous planifiÃ©.
+                    Aucun rendez-vous planifié.
                   </div>
                 ) : (
                   getGroupedAppointments().map(([dateStr, apps]) => (
@@ -798,14 +808,14 @@ export default function Admin({ currentUser, onLogout }) {
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
                               <span style={{ fontWeight: "700" }}>{app.time}</span>
                               <span style={{ 
-                                color: app.status === "ConfirmÃ©" ? "#228B22" : app.status === "AnnulÃ©" ? "#FF4500" : "var(--primary-gold)", 
+                                color: app.status === "Confirmé" ? "#228B22" : app.status === "Annulé" ? "#FF4500" : "var(--primary-gold)", 
                                 fontSize: "0.7rem", 
                                 fontWeight: "700" 
                               }}>{app.status}</span>
                             </div>
                             <div>
                               <div style={{ fontSize: "0.9rem", fontWeight: "600" }}>{app.clientName}</div>
-                              <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{app.serviceName} â€¢ {app.staffName}</div>
+                              <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{app.serviceName} • {app.staffName}</div>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "8px" }}>
                               <span style={{ fontWeight: "700", color: "var(--primary-gold)" }}>{app.price.toLocaleString("fr-FR")} F</span>
@@ -813,7 +823,7 @@ export default function Admin({ currentUser, onLogout }) {
                                 {app.status === "En attente" && (
                                   <button onClick={() => handleConfirmApp(app.id)} style={{ background: "#228B22", border: "none", color: "#121212", borderRadius: "50%", width: "24px", height: "24px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={12} /></button>
                                 )}
-                                {app.status !== "AnnulÃ©" && (
+                                {app.status !== "Annulé" && (
                                   <button onClick={() => handleCancelApp(app.id)} style={{ background: "#FF4500", border: "none", color: "#121212", borderRadius: "50%", width: "24px", height: "24px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} /></button>
                                 )}
                               </div>
@@ -834,7 +844,7 @@ export default function Admin({ currentUser, onLogout }) {
                       <th style={{ padding: "16px" }}>ID</th>
                       <th style={{ padding: "16px" }}>Client</th>
                       <th style={{ padding: "16px" }}>Soin / Praticien</th>
-                      <th style={{ padding: "16px" }}>Date & CrÃ©neau</th>
+                      <th style={{ padding: "16px" }}>Date & Créneau</th>
                       <th style={{ padding: "16px" }}>Tarif</th>
                       <th style={{ padding: "16px" }}>Statut</th>
                       <th style={{ padding: "16px", textAlign: "right" }}>Actions</th>
@@ -843,7 +853,7 @@ export default function Admin({ currentUser, onLogout }) {
                   <tbody>
                     {filteredAppointments.length === 0 ? (
                       <tr>
-                        <td colSpan="7" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun rendez-vous trouvÃ©.</td>
+                        <td colSpan="7" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun rendez-vous trouvé.</td>
                       </tr>
                     ) : (
                       filteredAppointments.map(app => (
@@ -857,7 +867,7 @@ export default function Admin({ currentUser, onLogout }) {
                             <div>{app.serviceName}</div>
                             <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>par {app.staffName}</div>
                           </td>
-                          <td style={{ padding: "16px" }}>{app.date} Ã  {app.time}</td>
+                          <td style={{ padding: "16px" }}>{app.date} à {app.time}</td>
                           <td style={{ padding: "16px", fontWeight: "700" }}>
                             <div>{app.price.toLocaleString("fr-FR")} F</div>
                             {app.promoCodeUsed && (
@@ -877,8 +887,8 @@ export default function Admin({ currentUser, onLogout }) {
                               borderRadius: "12px",
                               fontSize: "0.7rem",
                               fontWeight: "700",
-                              background: app.status === "ConfirmÃ©" ? "rgba(34,139,34,0.15)" : app.status === "AnnulÃ©" ? "rgba(178,34,34,0.15)" : "rgba(212,175,55,0.15)",
-                              color: app.status === "ConfirmÃ©" ? "#228B22" : app.status === "AnnulÃ©" ? "#FF4500" : "var(--primary-gold)"
+                              background: app.status === "Confirmé" ? "rgba(34,139,34,0.15)" : app.status === "Annulé" ? "rgba(178,34,34,0.15)" : "rgba(212,175,55,0.15)",
+                              color: app.status === "Confirmé" ? "#228B22" : app.status === "Annulé" ? "#FF4500" : "var(--primary-gold)"
                             }}>
                               {app.status}
                             </span>
@@ -888,7 +898,7 @@ export default function Admin({ currentUser, onLogout }) {
                               {app.status === "En attente" && (
                                 <button onClick={() => handleConfirmApp(app.id)} style={{ padding: "6px", background: "rgba(34,139,34,0.1)", border: "none", color: "#228B22", cursor: "pointer", borderRadius: "4px" }}><Check size={14} /></button>
                               )}
-                              {app.status !== "AnnulÃ©" && (
+                              {app.status !== "Annulé" && (
                                 <button onClick={() => handleCancelApp(app.id)} style={{ padding: "6px", background: "rgba(178,34,34,0.1)", border: "none", color: "#FF4500", cursor: "pointer", borderRadius: "4px" }}><X size={14} /></button>
                               )}
                               <button onClick={() => handleDeleteApp(app.id)} style={{ padding: "6px", background: "rgba(255,255,255,0.04)", border: "none", color: "var(--text-secondary)", cursor: "pointer", borderRadius: "4px" }}><Trash2 size={14} /></button>
@@ -932,8 +942,8 @@ export default function Admin({ currentUser, onLogout }) {
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", color: "var(--text-secondary)" }}>
                     <th style={{ padding: "16px" }}>Nom</th>
                     <th style={{ padding: "16px" }}>Email</th>
-                    <th style={{ padding: "16px" }}>TÃ©lÃ©phone</th>
-                    <th style={{ padding: "16px" }}>RÃ´le</th>
+                    <th style={{ padding: "16px" }}>Téléphone</th>
+                    <th style={{ padding: "16px" }}>Rôle</th>
                     <th style={{ padding: "16px" }}>Rendez-vous</th>
                     <th style={{ padding: "16px", textAlign: "right" }}>Actions</th>
                   </tr>
@@ -941,7 +951,7 @@ export default function Admin({ currentUser, onLogout }) {
                 <tbody>
                   {filteredClients.length === 0 ? (
                     <tr>
-                      <td colSpan="6" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun client trouvÃ©.</td>
+                      <td colSpan="6" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun client trouvé.</td>
                     </tr>
                   ) : (
                     filteredClients.map(c => {
@@ -950,7 +960,7 @@ export default function Admin({ currentUser, onLogout }) {
                         <tr key={c.email} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                           <td style={{ padding: "16px", fontWeight: "600" }}>{c.name}</td>
                           <td style={{ padding: "16px" }}>{c.email}</td>
-                          <td style={{ padding: "16px" }}>{c.phone || "Non spÃ©cifiÃ©"}</td>
+                          <td style={{ padding: "16px" }}>{c.phone || "Non spécifié"}</td>
                           <td style={{ padding: "16px", textTransform: "capitalize" }}>{c.role}</td>
                           <td style={{ padding: "16px" }}>{clientApps.length} rdv</td>
                           <td style={{ padding: "16px", textAlign: "right" }}>
@@ -961,7 +971,7 @@ export default function Admin({ currentUser, onLogout }) {
                                   setShowClientModal(true);
                                 }} 
                                 style={{ padding: "6px", background: "rgba(212,175,55,0.1)", border: "none", color: "var(--primary-gold)", cursor: "pointer", borderRadius: "4px" }}
-                                title="Voir dÃ©tails"
+                                title="Voir détails"
                               >
                                 <Eye size={14} />
                               </button>
@@ -985,7 +995,7 @@ export default function Admin({ currentUser, onLogout }) {
                     <button onClick={() => setShowClientModal(false)} style={{ background: "none", border: "none", color: "var(--primary-gold)", cursor: "pointer" }}><X size={20} /></button>
                   </div>
                   <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "16px" }}>
-                    Email : {selectedClient.email} â€¢ Mobile : {selectedClient.phone || "Aucun"}
+                    Email : {selectedClient.email} • Mobile : {selectedClient.phone || "Aucun"}
                   </p>
                   <h4 style={{ marginBottom: "12px", fontSize: "0.95rem" }}>Historique des rendez-vous ({selectedClient.appointments.length}) :</h4>
                   <div style={{ maxHeight: "250px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -996,7 +1006,7 @@ export default function Admin({ currentUser, onLogout }) {
                         <div key={a.id} style={{ padding: "12px", background: "rgba(255,255,255,0.02)", borderRadius: "4px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem" }}>
                           <div>
                             <div style={{ fontWeight: "600" }}>{a.serviceName}</div>
-                            <div style={{ color: "var(--text-secondary)" }}>{a.date} Ã  {a.time} - {a.staffName}</div>
+                            <div style={{ color: "var(--text-secondary)" }}>{a.date} à {a.time} - {a.staffName}</div>
                           </div>
                           <span style={{ color: "var(--primary-gold)", fontWeight: "700" }}>{a.price.toLocaleString("fr-FR")} F</span>
                         </div>
@@ -1059,18 +1069,18 @@ export default function Admin({ currentUser, onLogout }) {
                       <input type="number" required value={serviceForm.price} onChange={e => setServiceForm({ ...serviceForm, price: e.target.value })} style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }} />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>DurÃ©e :</label>
+                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Durée :</label>
                       <input type="text" required placeholder="ex: 45 min" value={serviceForm.duration} onChange={e => setServiceForm({ ...serviceForm, duration: e.target.value })} style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }} />
                     </div>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>CatÃ©gorie :</label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Catégorie :</label>
                     <select value={serviceForm.category} onChange={e => setServiceForm({ ...serviceForm, category: e.target.value })} style={{ padding: "8px", background: "#121212", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }}>
                       <optgroup label="Soins">
                         <option value="Visage & Corps">Visage & Corps</option>
-                        <option value="Teint & Ã‰clat">Teint & Ã‰clat</option>
-                        <option value="Soins SpÃ©cifiques">Soins SpÃ©cifiques</option>
+                        <option value="Teint & Éclat">Teint & Éclat</option>
+                        <option value="Soins Spécifiques">Soins Spécifiques</option>
                         <option value="Massages">Massages</option>
                       </optgroup>
                       <optgroup label="Coiffure">
@@ -1086,7 +1096,7 @@ export default function Admin({ currentUser, onLogout }) {
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>BÃ©nÃ©fices (sÃ©parÃ©s par des virgules) :</label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Bénéfices (séparés par des virgules) :</label>
                     <input type="text" placeholder="ex: Hydrate la peau, Clarifie le teint" value={serviceForm.benefits} onChange={e => setServiceForm({ ...serviceForm, benefits: e.target.value })} style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }} />
                   </div>
 
@@ -1120,7 +1130,7 @@ export default function Admin({ currentUser, onLogout }) {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "10px", marginTop: "auto", padding: "0 16px 14px" }}>
                     <div>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{s.duration} â€¢ </span>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{s.duration} • </span>
                       <span style={{ fontWeight: "700", color: "var(--primary-gold)", fontSize: "0.9rem" }}>{Number(s.price).toLocaleString("fr-FR")} F</span>
                     </div>
                     <div style={{ display: "flex", gap: "4px" }}>
@@ -1151,7 +1161,7 @@ export default function Admin({ currentUser, onLogout }) {
                 className="btn-gold" 
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
               >
-                <Plus size={16} /> GÃ©nÃ©rer un Code Promo
+                <Plus size={16} /> Générer un Code Promo
               </button>
               <input
                 type="text"
@@ -1176,12 +1186,12 @@ export default function Admin({ currentUser, onLogout }) {
               <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
                 <form onSubmit={handleSavePromo} className="glass-panel" style={{ maxWidth: "450px", width: "100%", padding: "30px", border: "1px solid var(--primary-gold)", display: "flex", flexDirection: "column", gap: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <h3 className="gold-text">GÃ©nÃ©rer un Code Promo</h3>
+                    <h3 className="gold-text">Générer un Code Promo</h3>
                     <button type="button" onClick={() => setShowPromoForm(false)} style={{ background: "none", border: "none", color: "var(--primary-gold)", cursor: "pointer" }}><X size={20} /></button>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Code de rÃ©duction (8 caractÃ¨res) :</label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Code de réduction (8 caractères) :</label>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <input 
                         type="text" 
@@ -1204,13 +1214,13 @@ export default function Admin({ currentUser, onLogout }) {
                         className="btn-outline"
                         style={{ fontSize: "0.75rem", padding: "8px 12px" }}
                       >
-                        RÃ©gÃ©nÃ©rer
+                        Régénérer
                       </button>
                     </div>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Nom de la cliente dÃ©tendue :</label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Nom de la cliente détendue :</label>
                     <input 
                       type="text" 
                       required 
@@ -1247,7 +1257,7 @@ export default function Admin({ currentUser, onLogout }) {
                     </div>
                   </div>
 
-                  <button type="submit" className="btn-gold" style={{ marginTop: "10px" }}>CrÃ©er le code de rÃ©duction</button>
+                  <button type="submit" className="btn-gold" style={{ marginTop: "10px" }}>Créer le code de réduction</button>
                 </form>
               </div>
             )}
@@ -1259,7 +1269,7 @@ export default function Admin({ currentUser, onLogout }) {
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", color: "var(--text-secondary)" }}>
                     <th style={{ padding: "16px" }}>Code</th>
                     <th style={{ padding: "16px" }}>Cliente</th>
-                    <th style={{ padding: "16px" }}>RÃ©duction</th>
+                    <th style={{ padding: "16px" }}>Réduction</th>
                     <th style={{ padding: "16px" }}>Utilisations</th>
                     <th style={{ padding: "16px" }}>Statut</th>
                     <th style={{ padding: "16px", textAlign: "right" }}>Actions</th>
@@ -1268,7 +1278,7 @@ export default function Admin({ currentUser, onLogout }) {
                 <tbody>
                   {filteredPromoCodes.length === 0 ? (
                     <tr>
-                      <td colSpan="6" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun code promo gÃ©nÃ©rÃ©.</td>
+                      <td colSpan="6" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun code promo généré.</td>
                     </tr>
                   ) : (
                     filteredPromoCodes.map(promo => (
@@ -1299,11 +1309,12 @@ export default function Admin({ currentUser, onLogout }) {
                               className="btn-outline" 
                               style={{ fontSize: "0.7rem", padding: "4px 8px" }}
                             >
-                              {promo.isActive ? "DÃ©sactiver" : "Activer"}
+                              {promo.isActive ? "Désactiver" : "Activer"}
                             </button>
                             <button 
                               onClick={async () => {
-                                if (window.confirm("Supprimer ce code promo ?")) {
+                                const okPromo = await confirm({ title: "Supprimer ce code promo", message: "Ce code promo sera définitivement supprimé.", confirmLabel: "Supprimer", danger: true });
+                                if (okPromo) {
                                   await deletePromoCode(promo.code);
                                   loadAllData();
                                 }
@@ -1375,7 +1386,7 @@ export default function Admin({ currentUser, onLogout }) {
                     {productImagePreview && <img src={productImagePreview} alt="preview" style={{ width: "100%", height: "160px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(212,175,55,0.4)" }} />}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>â€” OU â€” URL de l'image :</label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>— OU — URL de l'image :</label>
                     <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} placeholder="https://example.com/produit.jpg" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
                   </div>
 
@@ -1462,8 +1473,8 @@ export default function Admin({ currentUser, onLogout }) {
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", color: "var(--text-secondary)" }}>
                     <th style={{ padding: "16px" }}>Client (Email)</th>
-                    <th style={{ padding: "16px" }}>Code AffiliÃ©</th>
-                    <th style={{ padding: "16px" }}>Points CumulÃ©s</th>
+                    <th style={{ padding: "16px" }}>Code Affilié</th>
+                    <th style={{ padding: "16px" }}>Points Cumulés</th>
                     <th style={{ padding: "16px" }}>Nombre Parrainages</th>
                     <th style={{ padding: "16px", textAlign: "right" }}>Actions</th>
                   </tr>
@@ -1471,7 +1482,7 @@ export default function Admin({ currentUser, onLogout }) {
                 <tbody>
                   {filteredAffiliates.length === 0 ? (
                     <tr>
-                      <td colSpan="5" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun affiliÃ© trouvÃ©.</td>
+                      <td colSpan="5" style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>Aucun affilié trouvé.</td>
                     </tr>
                   ) : (
                     filteredAffiliates.map(aff => (
@@ -1555,7 +1566,7 @@ export default function Admin({ currentUser, onLogout }) {
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>â€” OU â€” URL directe de l\'image :</label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>— OU — URL directe de l\'image :</label>
                     <input type="url" value={galleryForm.image_url} onChange={e => setGalleryForm({ ...galleryForm, image_url: e.target.value })} placeholder="https://example.com/image.jpg" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
                   </div>
 
@@ -1612,7 +1623,7 @@ export default function Admin({ currentUser, onLogout }) {
             
             {/* Site Settings Section */}
             <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <h3 className="gold-text" style={{ marginBottom: "20px" }}>ParamÃ¨tres du Site</h3>
+              <h3 className="gold-text" style={{ marginBottom: "20px" }}>Paramètres du Site</h3>
               <form onSubmit={handleSaveSiteSettings} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -1637,7 +1648,7 @@ export default function Admin({ currentUser, onLogout }) {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>TÃ©lÃ©phone :</label>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Téléphone :</label>
                     <input
                       type="text"
                       value={siteSettings.phone || ""}
@@ -1657,10 +1668,10 @@ export default function Admin({ currentUser, onLogout }) {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Bandeau Promotionnel (Texte dÃ©filant en haut du site) :</label>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Bandeau Promotionnel (Texte défilant en haut du site) :</label>
                   <input
                     type="text"
-                    placeholder="PROGRAMME FIDÃ‰LITÃ‰ : Accumulez des points Ã  chaque visite..."
+                    placeholder="PROGRAMME FIDÉLITÉ : Accumulez des points à chaque visite..."
                     value={siteSettings.promo_banner || ""}
                     onChange={e => setSiteSettings({ ...siteSettings, promo_banner: e.target.value })}
                     style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
@@ -1675,7 +1686,7 @@ export default function Admin({ currentUser, onLogout }) {
                   </div>
                   <div>
                     <div style={{ fontSize: "0.9rem", fontWeight: "600", color: siteSettings.promo_banner_active !== false ? "#4CAF50" : "#FF5722" }}>
-                      {siteSettings.promo_banner_active !== false ? "Active â€” visible sur le site" : "Desactivee â€” masquee pour les visiteurs"}
+                      {siteSettings.promo_banner_active !== false ? "Active — visible sur le site" : "Desactivee — masquee pour les visiteurs"}
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "2px" }}>Cliquer pour basculer</div>
                   </div>
@@ -1717,7 +1728,7 @@ export default function Admin({ currentUser, onLogout }) {
                     style={{ cursor: "pointer" }}
                   />
                   <label htmlFor="allow_specialist" style={{ fontSize: "0.9rem", color: "var(--text-primary)", cursor: "pointer" }}>
-                    Autoriser les clients Ã  choisir un praticien lors de la rÃ©servation
+                    Autoriser les clients à choisir un praticien lors de la réservation
                   </label>
                 </div>
 
@@ -1727,7 +1738,7 @@ export default function Admin({ currentUser, onLogout }) {
                   className="btn-gold"
                   style={{ width: "fit-content", padding: "10px 24px", marginTop: "10px", alignSelf: "flex-start" }}
                 >
-                  {settingsSaving ? "Sauvegarde..." : "Enregistrer les ParamÃ¨tres"}
+                  {settingsSaving ? "Sauvegarde..." : "Enregistrer les Paramètres"}
                 </button>
               </form>
             </div>
@@ -1735,7 +1746,7 @@ export default function Admin({ currentUser, onLogout }) {
             {/* Staff Management Section */}
             <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                <h3 className="gold-text">Gestion de l'Ã‰quipe (Staff)</h3>
+                <h3 className="gold-text">Gestion de l'Équipe (Staff)</h3>
                 <button onClick={() => setShowStaffForm(true)} className="btn-gold" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", padding: "8px 14px" }}>
                   <Plus size={14} /> Ajouter un Praticien
                 </button>
@@ -1756,8 +1767,8 @@ export default function Admin({ currentUser, onLogout }) {
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>RÃ´le :</label>
-                      <input type="text" required placeholder="ex: MassothÃ©rapeute" value={staffForm.role} onChange={e => setStaffForm({ ...staffForm, role: e.target.value })} style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }} />
+                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Rôle :</label>
+                      <input type="text" required placeholder="ex: Massothérapeute" value={staffForm.role} onChange={e => setStaffForm({ ...staffForm, role: e.target.value })} style={{ padding: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)", borderRadius: "4px", outline: "none" }} />
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -1794,15 +1805,15 @@ export default function Admin({ currentUser, onLogout }) {
 
             {/* Backups & Actions Section */}
             <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", gap: "18px" }}>
-              <h3 className="gold-text">OpÃ©rations SystÃ¨me & Exportations</h3>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>GÃ©rez les sauvegardes globales et la maintenance de la base de donnÃ©es de The Alpha Beauty.</p>
+              <h3 className="gold-text">Opérations Système & Exportations</h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Gérez les sauvegardes globales et la maintenance de la base de données de The Alpha Beauty.</p>
               
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <button onClick={handleExportCSV} className="btn-gold" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Download size={16} /> Exporter les Rendez-vous (CSV)
                 </button>
                 <button onClick={handleResetDb} className="btn-outline" style={{ borderColor: "#B22222", color: "#FF4500" }}>
-                  RÃ©initialiser la Base de DonnÃ©es
+                  Réinitialiser la Base de Données
                 </button>
               </div>
             </div>
@@ -1810,7 +1821,7 @@ export default function Admin({ currentUser, onLogout }) {
           </div>
         )}
 
-        {/* TAB FIDÃ‰LITÃ‰ */}
+        {/* TAB FIDÉLITÉ */}
         {activeTab === "fidelite" && (
           <div>
             <AdminFidelite currentUser={currentUser} />

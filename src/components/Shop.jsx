@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react"
 import { ShoppingBag, ShoppingCart, X, Plus, Minus, MessageCircle, Package, Trash2, Search, Eye, Star, Zap, Check, Gem } from "lucide-react"
 import { getProducts, getSiteSettings } from "../supabase"
 import { useToast } from "./Toast.jsx"
+import { useConfirm } from "./ConfirmModal"
 import { getFideliteSettings, getWallet, payerBoutique, createOrder } from "../fidelite"
 
 export default function Shop({ currentUser, isTab = false }) {
@@ -19,6 +20,7 @@ export default function Shop({ currentUser, isTab = false }) {
   const [addedFeedback, setAddedFeedback] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
   const { showToast } = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     async function load() {
@@ -121,7 +123,8 @@ export default function Shop({ currentUser, isTab = false }) {
       return;
     }
 
-    if (!window.confirm(`Vous allez utiliser ${pointsNecessaires} pts pour une réduction de ${reductionMaxFcfa} FCFA sur ${product.name}. Le reste sera à payer par WhatsApp ou en boutique. Confirmer ?`)) {
+    const okPay = await confirm({ title: "Payer avec vos points", message: `Utiliser ${pointsNecessaires} pts pour une réduction de ${reductionMaxFcfa} FCFA sur "${product.name}". Le reste sera payé en boutique ou WhatsApp.`, confirmLabel: "Confirmer le paiement", danger: false });
+    if (!okPay) {
       return;
     }
 

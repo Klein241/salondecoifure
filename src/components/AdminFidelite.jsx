@@ -1,3 +1,4 @@
+import { useConfirm } from "./ConfirmModal"
 import React, { useState, useEffect, useCallback } from "react"
 import {
   getAllWallets, getAllPacks, getAllTransactions, getAllReservations,
@@ -65,6 +66,7 @@ const Toggle = ({ label, value, onChange, description }) => (
 )
 
 export default function AdminFidelite({ currentUser }) {
+  const confirm = useConfirm();
   const [activeSection, setActiveSection] = useState("apercu")
   const [settings, setSettings] = useState(null)
   const [packs, setPacks] = useState([])
@@ -154,7 +156,8 @@ export default function AdminFidelite({ currentUser }) {
   }
 
   const handleDeletePack = async (id) => {
-    if (!window.confirm("Désactiver ce pack ?")) return
+    const ok = await confirm({ title: "Désactiver ce pack", message: "Ce pack sera désactivé et ne sera plus visible par les clients.", confirmLabel: "Désactiver", danger: true });
+    if (!ok) return
     await deletePack(id)
     showToast("Pack désactivé")
     loadAll()
@@ -203,7 +206,8 @@ export default function AdminFidelite({ currentUser }) {
   }
 
   const handleExpirer = async () => {
-    if (!window.confirm("Lancer l'expiration des points périmés ? Cette action est irréversible.")) return
+    const ok = await confirm({ title: "Expirer les points", message: "Cette action expirera tous les points périmés. Elle est irréversible.", confirmLabel: "Lancer l'expiration", danger: true });
+    if (!ok) return
     const result = await expirerPointsPasses()
     if (result.success) {
       showToast(`✅ ${result.expired} transaction(s) expirée(s)`)

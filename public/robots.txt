@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://klein241.github.io/salondecoifure/sitemap.xml
