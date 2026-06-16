@@ -44,6 +44,11 @@ export const staffList = [
 ];
 
 export const galleryItems = [
+  { id: 7, title: "Tresses Afro & Tissages", image: "/gallery/tresses_afro.jpg", category: "Coiffure" },
+  { id: 8, title: "Espace Coiffure & Brushing", image: "/gallery/salon_coiffure.jpg", category: "L'Institut" },
+  { id: 9, title: "Cabine de Soin & Massage", image: "/gallery/salle_massage.jpg", category: "L'Institut" },
+  { id: 10, title: "Espace d'Attente VIP", image: "/gallery/salon_accueil.jpg", category: "L'Institut" },
+  { id: 11, title: "Douche & Balnéothérapie", image: "/gallery/douche.jpg", category: "L'Institut" },
   { id: 1, title: "Soin Visage Hydratant", image: "https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?w=600", category: "Visage" },
   { id: 2, title: "Massage aux Pierres Chaudes", image: "https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600", category: "Massages" },
   { id: 3, title: "Soin Éclaircissant Teint", image: "https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=600", category: "Visage" },

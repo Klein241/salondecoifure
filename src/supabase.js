@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import { servicesList, staffList, getStoredData, setStoredData } from "./data"
+import { servicesList, staffList, galleryItems, getStoredData, setStoredData } from "./data"
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ""
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ""
@@ -622,7 +622,14 @@ export async function getGalleryImages() {
       console.error("Error fetching gallery images:", e)
     }
   }
-  return getStoredData("gallery_images", [])
+  const localData = getStoredData("gallery_images", galleryItems);
+  const hasNewImages = localData.some(img => img.image && img.image.startsWith('/gallery/'));
+  if (!hasNewImages && galleryItems.length > 0) {
+    const merged = [...galleryItems, ...localData.filter(img => !galleryItems.some(gi => gi.id === img.id))];
+    setStoredData("gallery_images", merged);
+    return merged;
+  }
+  return localData;
 }
 
 export async function addGalleryImage(image) {
@@ -643,7 +650,7 @@ export async function addGalleryImage(image) {
       console.error("Error adding gallery image:", e)
     }
   }
-  const images = getStoredData("gallery_images", [])
+  const images = getStoredData("gallery_images", galleryItems)
   const newImg = { ...image, id: Date.now().toString(), image: image.image_url, created_at: new Date().toISOString() }
   images.unshift(newImg)
   setStoredData("gallery_images", images)
@@ -666,7 +673,7 @@ export async function deleteGalleryImage(id, imageUrl) {
       console.error("Error deleting gallery image:", e)
     }
   }
-  const images = getStoredData("gallery_images", [])
+  const images = getStoredData("gallery_images", galleryItems)
   const filtered = images.filter(img => img.id !== id)
   setStoredData("gallery_images", filtered)
   return true
