@@ -1,4 +1,4 @@
--- ═══════════════════════════════════════════════════════════
+﻿-- ═══════════════════════════════════════════════════════════
 -- SETUP GALERIE — À exécuter dans Supabase SQL Editor
 -- ═══════════════════════════════════════════════════════════
 
@@ -16,16 +16,19 @@ CREATE TABLE IF NOT EXISTS public.gallery_images (
 ALTER TABLE public.gallery_images ENABLE ROW LEVEL SECURITY;
 
 -- 3. Policies : lecture publique, écriture admin seulement
-CREATE POLICY IF NOT EXISTS "gallery_read_public"
+DROP POLICY IF EXISTS "gallery_read_public" ON public.gallery_images;
+CREATE POLICY "gallery_read_public"
   ON public.gallery_images FOR SELECT TO public USING (true);
 
-CREATE POLICY IF NOT EXISTS "gallery_insert_admin"
+DROP POLICY IF EXISTS "gallery_insert_admin" ON public.gallery_images;
+CREATE POLICY "gallery_insert_admin"
   ON public.gallery_images FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
-CREATE POLICY IF NOT EXISTS "gallery_delete_admin"
+DROP POLICY IF EXISTS "gallery_delete_admin" ON public.gallery_images;
+CREATE POLICY "gallery_delete_admin"
   ON public.gallery_images FOR DELETE TO authenticated
   USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
