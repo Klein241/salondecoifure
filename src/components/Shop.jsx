@@ -7,6 +7,7 @@ export default function Shop({ currentUser, isTab = false }) {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+  const [checkoutModal, setCheckoutModal] = useState(false);
   const [settings, setSettings] = useState({ whatsapp: '+241077004073', site_name: 'The Alpha Beauty' });
   const [fideliteSettings, setFideliteSettings] = useState(null);
   const [wallet, setWallet] = useState(null);
@@ -83,7 +84,14 @@ export default function Shop({ currentUser, isTab = false }) {
 
   const handleOrder = () => {
     if (cart.length === 0) return;
+    setCheckoutModal(true);
+  };
+
+  const handleConfirmOrder = () => {
     window.open(getWhatsAppUrl(cart, cartTotal), '_blank');
+    setCart([]);
+    setCheckoutModal(false);
+    setShowCart(false);
   };
 
   const handleDirectOrder = (product) => {
@@ -685,6 +693,70 @@ export default function Shop({ currentUser, isTab = false }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+
+      {/* ═══ Checkout Confirmation Modal ═══ */}
+      {checkoutModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setCheckoutModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }} />
+          <div style={{
+            position: 'relative', background: '#111', borderRadius: '24px', overflow: 'hidden',
+            width: '92%', maxWidth: '500px', border: `1px solid ${C.gold}`,
+            boxShadow: '0 40px 80px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column',
+            animation: 'fadeIn 0.3s ease-out'
+          }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <ShoppingCart size={20} color={C.gold} />
+                  Confirmer la commande
+                </h3>
+                <button onClick={() => setCheckoutModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div style={{ padding: '24px', overflowY: 'auto', maxHeight: '50vh' }}>
+              <p style={{ color: C.muted, fontSize: '0.9rem', marginBottom: '16px' }}>Voici le récapitulatif de votre panier :</p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0' }}>
+                {cart.map(item => (
+                  <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '0.9rem', color: '#fff' }}>
+                    <span>{item.qty}x {item.name}</span>
+                    <span style={{ color: C.gold }}>{(item.price * item.qty).toLocaleString('fr-FR')} F</span>
+                  </li>
+                ))}
+              </ul>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1rem', color: '#fff' }}>
+                <span>TOTAL</span>
+                <span style={{ color: C.gold }}>{cartTotal.toLocaleString('fr-FR')} FCFA</span>
+              </div>
+            </div>
+            <div style={{ padding: '24px', background: 'rgba(255,255,255,0.02)', display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setCheckoutModal(false)}
+                style={{
+                  flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'transparent', color: '#fff', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleConfirmOrder}
+                style={{
+                  flex: 1, padding: '14px', borderRadius: '12px', border: 'none',
+                  background: `linear-gradient(135deg, ${C.goldDark}, ${C.gold})`, color: '#000',
+                  fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  boxShadow: `0 4px 15px rgba(212,175,55,0.3)`, transition: 'transform 0.2s'
+                }}
+              >
+                <Check size={18} />
+                Valider l'achat
+              </button>
+            </div>
           </div>
         </div>
       )}

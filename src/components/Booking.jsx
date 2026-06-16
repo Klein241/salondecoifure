@@ -23,6 +23,7 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
   const [appliedPromo, setAppliedPromo] = useState(null);
   const [appliedAffiliate, setAppliedAffiliate] = useState(null);
   const [allProfiles, setAllProfiles] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const timeSlots = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00"];
 
@@ -575,7 +576,7 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" }} className="full-col">
                   <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Code de réduction ou parrainage (optionnel) :</label>
-                  <div style={{ display: "flex", gap: "8px" }}>
+                  <div className="promo-button-container" style={{ display: "flex", gap: "8px" }}>
                     <input
                       type="text"
                       placeholder="Carte fidélité ou code parrainage"

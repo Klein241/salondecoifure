@@ -164,3 +164,99 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--light-gold);
   border-color: var(--light-gold);
 }
+
+
+/* =========================================
+   MOBILE-FIRST RESPONSIVE DESIGN (ADDED V7)
+   ========================================= */
+
+/* Base responsive resets */
+img, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Navbar responsiveness */
+@media (max-width: 768px) {
+  nav {
+    flex-direction: column;
+    padding: 10px !important;
+    gap: 10px;
+  }
+  nav .nav-links {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 15px !important;
+  }
+}
+
+/* Promo Banner responsiveness */
+.promo-banner {
+  flex-direction: column !important;
+  padding: 8px !important;
+  font-size: 0.7rem !important;
+}
+@media (min-width: 480px) {
+  .promo-banner {
+    flex-direction: row !important;
+    padding: 8px 16px !important;
+  }
+}
+
+/* Booking Layout Fixes */
+.promo-button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (min-width: 480px) {
+  .promo-button-container {
+    flex-direction: row;
+  }
+}
+.promo-input {
+  width: 100% !important;
+}
+
+/* Admin panel responsive layout */
+@media (max-width: 768px) {
+  .admin-layout {
+    flex-direction: column !important;
+  }
+  .admin-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .admin-tabs {
+    flex-direction: row !important;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 10px;
+  }
+  .admin-content {
+    padding: 15px !important;
+  }
+  
+  /* Admin Settings Grid */
+  form[style*="display: grid"], 
+  div[style*="display: grid"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Global utility classes for mobile */
+@media (max-width: 600px) {
+  .glass-panel {
+    padding: 15px !important;
+  }
+  h1 { font-size: 2rem !important; }
+  h2 { font-size: 1.5rem !important; }
+  
+  .btn-gold, .btn-outline {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}

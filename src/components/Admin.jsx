@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+﻿import React, { useState, useEffect } from "react"
 import { 
   LayoutDashboard, Calendar, Users, Scissors, Award, Settings, 
   Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image, Gem,
@@ -75,7 +75,7 @@ export default function Admin({ currentUser, onLogout }) {
   const [productUploading, setProductUploading] = useState(false);
 
   // Site settings state
-  const [siteSettings, setSiteSettings] = useState({ site_name: 'The Alpha Beauty', address: 'Alibadeng, Gabon', phone: '+241 077 00 40 73', whatsapp: '+241077004073', logo_url: '', favicon_url: '', allow_specialist_selection: true });
+  const [siteSettings, setSiteSettings] = useState({ site_name: 'The Alpha Beauty', address: 'Alibadeng, Gabon', phone: '+241 077 00 40 73', whatsapp: '+241077004073', logo_url: '', favicon_url: '', allow_specialist_selection: true, promo_banner: '', promo_banner_active: true });
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
   const [faviconFile, setFaviconFile] = useState(null);
@@ -1665,6 +1665,20 @@ export default function Admin({ currentUser, onLogout }) {
                     onChange={e => setSiteSettings({ ...siteSettings, promo_banner: e.target.value })}
                     style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
                   />
+                </div>
+
+                {/* Toggle ON/OFF bande d'annonce */}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", background: siteSettings.promo_banner_active !== false ? "rgba(34,139,34,0.08)" : "rgba(255,69,0,0.06)", borderRadius: "8px", border: siteSettings.promo_banner_active !== false ? "1px solid rgba(34,139,34,0.2)" : "1px solid rgba(255,69,0,0.15)" }}>
+                  <div style={{ position: "relative", width: "48px", height: "26px", cursor: "pointer" }} onClick={() => setSiteSettings({ ...siteSettings, promo_banner_active: !siteSettings.promo_banner_active })}>
+                    <div style={{ position: "absolute", inset: 0, borderRadius: "13px", background: siteSettings.promo_banner_active !== false ? "var(--primary-gold)" : "rgba(255,255,255,0.15)", transition: "background 0.3s ease" }} />
+                    <div style={{ position: "absolute", top: "3px", left: siteSettings.promo_banner_active !== false ? "25px" : "3px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left 0.3s ease", boxShadow: "0 2px 4px rgba(0,0,0,0.3)" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "0.9rem", fontWeight: "600", color: siteSettings.promo_banner_active !== false ? "#4CAF50" : "#FF5722" }}>
+                      {siteSettings.promo_banner_active !== false ? "Active — visible sur le site" : "Desactivee — masquee pour les visiteurs"}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "2px" }}>Cliquer pour basculer</div>
+                  </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>

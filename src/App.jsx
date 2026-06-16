@@ -45,7 +45,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [referralUrlCode, setReferralUrlCode] = useState("");
-  const [siteSettings, setSiteSettings] = useState({ allow_specialist_selection: true, whatsapp: '+241077004073', site_name: 'The Alpha Beauty' });
+  const [siteSettings, setSiteSettings] = useState({ allow_specialist_selection: true, whatsapp: '+241077004073', site_name: 'The Alpha Beauty', promo_banner: '', promo_banner_active: true });
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -218,26 +218,29 @@ export default function App() {
   // ── PAGES PUBLIQUES ───────────────────────────────────────────────────────
   return (
     <div style={{ background: "var(--bg-color)", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Bandeau promotionnel */}
-      <div style={{
-        background: "linear-gradient(90deg, #aa771c 0%, #121212 50%, #aa771c 100%)",
-        color: "var(--light-gold)",
-        fontSize: "0.8rem",
-        fontWeight: "600",
-        letterSpacing: "0.08em",
-        textAlign: "center",
-        padding: "8px 24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "8px",
-        position: "relative",
-        zIndex: 1001,
-      }}>
-        <Gift size={14} />
-        <span>{siteSettings?.promo_banner || "PROGRAMME FIDÉLITÉ : Accumulez des points à chaque visite et bénéficiez de réductions exclusives. Code parrainage = -10%."}</span>
-        <Sparkles size={12} />
-      </div>
+      {/* Bandeau promotionnel � desactivable depuis admin */}
+      {siteSettings?.promo_banner_active !== false && (
+        <div className="promo-banner" style={{
+          background: "linear-gradient(90deg, #aa771c 0%, #121212 50%, #aa771c 100%)",
+          color: "var(--light-gold)",
+          fontSize: "clamp(0.65rem, 2vw, 0.8rem)",
+          fontWeight: "600",
+          letterSpacing: "0.06em",
+          textAlign: "center",
+          padding: "8px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
+          position: "relative",
+          zIndex: 1001,
+          flexWrap: "wrap",
+        }}>
+          <Gift size={14} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0 }}>{siteSettings?.promo_banner || "PROGRAMME FIDELITE : Accumulez des points a chaque visite et beneficiez de reductions exclusives. Code parrainage = -10%."}</span>
+          <Sparkles size={12} style={{ flexShrink: 0 }} />
+        </div>
+      )}
 
       <Navbar
         currentRoute={currentRoute}
