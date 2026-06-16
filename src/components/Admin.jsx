@@ -680,7 +680,7 @@ export default function Admin({ currentUser, onLogout }) {
                   {chartData.map((d, index) => {
                     const pct = (d.value / maxChartValue) * 100;
                     return (
-                      <div key={index} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "12%", height: "100%", justifyContent: "flex-end" }}>
+                      <div key={`slot-${index}`} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "12%", height: "100%", justifyContent: "flex-end" }}>
                         <div style={{ fontSize: "0.7rem", color: "var(--primary-gold)", marginBottom: "4px", fontWeight: "700" }}>
                           {d.value > 0 ? `${(d.value / 1000)}k` : ""}
                         </div>

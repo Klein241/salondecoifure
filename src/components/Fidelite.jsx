@@ -282,7 +282,7 @@ export default function Fidelite({ currentUser }) {
           { label: "Utiliser", icon: CreditCard, action: () => setPayModal(true), color: COLORS.blue },
           { label: "Réserver", icon: Calendar, action: () => setResaModal(true), color: COLORS.purple }
         ].map((btn, i) => (
-          <button key={i} onClick={btn.action || (() => setActiveTab(btn.tab))} style={{
+          <button key={btn.tab || btn.label || i} onClick={btn.action || (() => setActiveTab(btn.tab))} style={{
             background: COLORS.card, border: `1px solid ${COLORS.border}`,
             borderRadius: 14, padding: "14px 8px", cursor: "pointer",
             display: "flex", flexDirection: "column", alignItems: "center", gap: 8,

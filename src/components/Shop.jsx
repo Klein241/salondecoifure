@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { ShoppingBag, ShoppingCart, X, Plus, Minus, MessageCircle, Package, Trash2, Search, Eye, Star, Zap, Check, Gem } from "lucide-react"
 import { getProducts, getSiteSettings } from "../supabase"
+import { useToast } from "./Toast.jsx"
 import { getFideliteSettings, getWallet, payerBoutique, createOrder } from "../fidelite"
 
 export default function Shop({ currentUser, isTab = false }) {
@@ -17,6 +18,7 @@ export default function Shop({ currentUser, isTab = false }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [addedFeedback, setAddedFeedback] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     async function load() {
@@ -102,11 +104,11 @@ export default function Shop({ currentUser, isTab = false }) {
 
   const handlePayWithCredits = async (product) => {
     if (!currentUser) {
-      alert("Veuillez vous connecter pour utiliser vos crédits prépayés.");
+      showToast("Veuillez vous connecter pour utiliser vos crédits.", "error");
       return;
     }
     if (!wallet || !fideliteSettings) {
-      alert("Impossible de charger votre portefeuille.");
+      showToast("Impossible de charger votre portefeuille.", "error");
       return;
     }
     const solde = (wallet.points_achetes || 0) + (wallet.points_gagnes || 0);
@@ -115,7 +117,7 @@ export default function Shop({ currentUser, isTab = false }) {
     const pointsNecessaires = Math.floor(reductionMaxFcfa / vpf);
 
     if (solde < pointsNecessaires) {
-      alert(`Solde insuffisant. Vous avez ${solde} pts, il vous faut ${pointsNecessaires} pts pour la réduction.`);
+      showToast(`Solde insuffisant. Vous avez ${solde} pts, il vous faut ${pointsNecessaires} pts.`, "error");
       return;
     }
 
@@ -141,7 +143,7 @@ export default function Shop({ currentUser, isTab = false }) {
       
       const newOrder = await createOrder(orderData);
       if (!newOrder) {
-        alert("Erreur lors de la création de la commande.");
+        showToast("Erreur lors de la création de la commande.", "error");
         setProcessingPayment(false);
         return;
       }
@@ -151,7 +153,7 @@ export default function Shop({ currentUser, isTab = false }) {
       
       if (result.success) {
         const extra = `\nRéduction par points : -${reductionMaxFcfa} FCFA\nReste à payer : ${result.prixCash} FCFA`;
-        alert("Paiement par points réussi ! Vous allez être redirigé vers WhatsApp pour finaliser la commande.");
+        showToast("Paiement validé ! Redirection vers WhatsApp...", "success");
         const items = [{ ...product, qty: 1 }];
         window.open(getWhatsAppUrl(items, product.price, extra), '_blank');
         
@@ -165,11 +167,11 @@ export default function Shop({ currentUser, isTab = false }) {
         });
         setSelectedProduct(null);
       } else {
-        alert("Erreur de paiement : " + result.error);
+        showToast("Erreur de paiement : " + result.error, "error");
       }
     } catch (e) {
       console.error(e);
-      alert("Une erreur est survenue.");
+      showToast("Une erreur est survenue. Veuillez réessayer.", "error");
     }
     setProcessingPayment(false);
   };
