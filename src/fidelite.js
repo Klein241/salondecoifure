@@ -12,8 +12,19 @@ const TENANT_ID = "default"
 // SETTINGS
 // ──────────────────────────────────────────────────────────────
 
+export function deriverParametres(settings) {
+  const R = Number(settings?.reduction_max_acceptable_pct) || 40;
+  return {
+    ...settings,
+    reduction_max_acceptable_pct: R,
+    plafond_deduction_pct: settings?.plafond_deduction_pct_override ?? Math.floor(R * 0.8),
+    reduction_boutique_max_pct: Math.floor(R * 0.9),
+    taux_cashback_pct: settings?.taux_cashback_pct_override ?? Math.floor(R * 0.1),
+  };
+}
+
 export async function getFideliteSettings() {
-  if (!supabase) return getDefaultSettings()
+  if (!supabase) return deriverParametres(getDefaultSettings())
   try {
     const { data, error } = await supabase
       .from("fidelite_settings")
@@ -21,10 +32,10 @@ export async function getFideliteSettings() {
       .eq("tenant_id", TENANT_ID)
       .single()
     if (error) throw error
-    return data
+    return deriverParametres(data)
   } catch (e) {
     console.error("getFideliteSettings:", e)
-    return getDefaultSettings()
+    return deriverParametres(getDefaultSettings())
   }
 }
 
@@ -37,7 +48,7 @@ export async function updateFideliteSettings(updates) {
       .select()
       .single()
     if (error) throw error
-    return data
+    return deriverParametres(data)
   } catch (e) {
     console.error("updateFideliteSettings:", e)
     return null
@@ -47,6 +58,7 @@ export async function updateFideliteSettings(updates) {
 function getDefaultSettings() {
   return {
     tenant_id: TENANT_ID,
+    reduction_max_acceptable_pct: 40,
     valeur_point_fcfa: 10,
     taux_cashback_pct: 5,
     expiration_points_gagnes_jours: 60,
@@ -941,3 +953,159 @@ export function unsubscribeWallet(channel) {
     supabase.removeChannel(channel)
   }
 }
+
+// ──────────────────────────────────────────────────────────────
+// GESTION BOUTIQUE & STOCK
+// ──────────────────────────────────────────────────────────────
+
+export async function payerBoutique(userId, orderId, montantFcfa, pointsAUtiliser, createdBy) {
+  if (!supabase) return { success: false, error: "Supabase non disponible" }
+
+  try {
+    const settings = await getFideliteSettings()
+    const wallet = await getWallet(userId)
+    if (!wallet) return { success: false, error: "Portefeuille introuvable" }
+
+    const vpf = safeValeurPoint(settings)
+    const soldeTotalPts = (wallet.points_achetes || 0) + (wallet.points_gagnes || 0)
+
+    const seuil = Number(settings.points_min_pour_utiliser) || 0
+    if (soldeTotalPts < seuil) {
+      return { success: false, error: `Seuil non atteint (${soldeTotalPts}/${seuil} pts)` }
+    }
+
+    if (pointsAUtiliser > soldeTotalPts) {
+      return { success: false, error: "Solde insuffisant." }
+    }
+
+    const reductionFcfa = pointsAUtiliser * vpf
+    const prixCash = montantFcfa - reductionFcfa
+
+    const pointsGagnesDelta = -Math.min(pointsAUtiliser, wallet.points_gagnes || 0)
+    const pointsAchetesDelta = -(pointsAUtiliser + pointsGagnesDelta)
+
+    const { error: txErr } = await supabase
+      .from("fidelite_transactions")
+      .insert([{
+        wallet_id: wallet.id,
+        tenant_id: TENANT_ID,
+        type: "deduction_boutique",
+        points_achetes_delta: pointsAchetesDelta,
+        points_gagnes_delta: pointsGagnesDelta,
+        montant_fcfa: -reductionFcfa,
+        note: `Paiement boutique commande: ${orderId}`,
+        created_by: createdBy || userId
+      }])
+    if (txErr) throw txErr
+
+    const { error: walletErr } = await supabase
+      .from("wallets")
+      .update({
+        points_achetes: Math.max(0, (wallet.points_achetes || 0) + pointsAchetesDelta),
+        points_gagnes: Math.max(0, (wallet.points_gagnes || 0) + pointsGagnesDelta),
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", wallet.id)
+    if (walletErr) throw walletErr
+
+    await logAudit(createdBy || userId, "paiement_boutique", {
+      order_id: orderId,
+      montant_total: montantFcfa,
+      points_utilises: pointsAUtiliser,
+      reduction_fcfa: reductionFcfa,
+      prix_cash: prixCash
+    })
+
+    return { success: true, prixCash, reductionFcfa, pointsUtilises: pointsAUtiliser }
+  } catch (e) {
+    console.error("payerBoutique:", e)
+    return { success: false, error: e.message }
+  }
+}
+
+export async function getOrdersAdmin() {
+  if (!supabase) return []
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("tenant_id", TENANT_ID)
+      .order("created_at", { ascending: false })
+    if (error) throw error
+    return data || []
+  } catch (e) {
+    console.error("getOrdersAdmin:", e)
+    return []
+  }
+}
+
+export async function createOrder(orderData) {
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([{ tenant_id: TENANT_ID, ...orderData }])
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  } catch (e) {
+    console.error("createOrder:", e)
+    return null
+  }
+}
+
+export async function getStockMovements(productId = null) {
+  if (!supabase) return []
+  try {
+    let query = supabase.from("stock_movements")
+      .select("*, profiles(nom, prenom)")
+      .eq("tenant_id", TENANT_ID)
+      .order("created_at", { ascending: false })
+    if (productId) query = query.eq("product_id", productId)
+    
+    const { data, error } = await query
+    if (error) throw error
+    return data || []
+  } catch (e) {
+    console.error("getStockMovements:", e)
+    return []
+  }
+}
+
+export async function adjustStock(productId, productName, qty, movementType, note, adminId) {
+  if (!supabase) return { success: false }
+  try {
+    const { data: prod, error: err1 } = await supabase.from("products").select("stock_quantity").eq("id", productId).single()
+    if (err1) throw err1
+    
+    let currentQty = prod.stock_quantity || 0
+    let delta = 0
+    if (movementType === "entree" || movementType === "correction") delta = qty
+    else if (movementType === "sortie_vente" || movementType === "sortie_ajustement") delta = -qty
+    
+    let newQty = currentQty + delta
+
+    const { error: err2 } = await supabase.from("stock_movements").insert([{
+      tenant_id: TENANT_ID,
+      product_id: productId,
+      product_name: productName,
+      movement_type: movementType,
+      quantity: Math.abs(qty),
+      quantity_before: currentQty,
+      quantity_after: newQty,
+      note,
+      created_by: adminId
+    }])
+    if (err2) throw err2
+
+    const { error: err3 } = await supabase.from("products").update({ stock_quantity: newQty }).eq("id", productId)
+    if (err3) throw err3
+
+    return { success: true, newQty }
+  } catch (e) {
+    console.error("adjustStock:", e)
+    return { success: false, error: e.message }
+  }
+}
+

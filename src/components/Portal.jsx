@@ -10,6 +10,9 @@ import {
   getReviews,
   createReview
 } from "../supabase"
+import { QRCodeSection } from "./QRCodeGenerator"
+import ShopTab from "./Shop"
+import GalleryTab from "./Gallery"
 import { getProducts, getGalleryImages, getPromoCodes } from "../supabase"
 import Fidelite from "./Fidelite"
 import {
@@ -113,6 +116,20 @@ export default function Portal({ currentUser, onLoginSuccess }) {
 
     const allReviews = await getReviews();
     setReviews(allReviews || []);
+
+    try {
+      const allPromos = await getPromoCodes();
+      const userPromos = (allPromos || []).filter(promo => 
+        promo.isActive && 
+        (!promo.clientName || 
+         promo.clientName.toLowerCase() === "tous" || 
+         promo.clientName.toLowerCase() === "public" || 
+         promo.clientName.toLowerCase().includes(currentUser.name.toLowerCase()))
+      );
+      setPromoCodes(userPromos);
+    } catch (err) {
+      console.error("Error loading promo codes:", err);
+    }
   };
 
   const handleAuth = async (e) => {
@@ -803,21 +820,21 @@ export default function Portal({ currentUser, onLoginSuccess }) {
         {/* TAB BOUTIQUE */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "shop" && (
-          <ShopTab currentUser={currentUser} />
+          <ShopTab currentUser={currentUser} isTab={true} />
         )}
 
         {/* ------------------------------------------------------------- */}
         {/* TAB GALERIE */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "gallery" && (
-          <GalleryTab />
+          <GalleryTab isTab={true} />
         )}
 
         {/* ------------------------------------------------------------- */}
         {/* TAB PROMOS */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "promos" && (
-          <PromosTab />
+          <PromosTab promoCodes={promoCodes} />
         )}
 
         {/* ------------------------------------------------------------- */}
@@ -879,7 +896,8 @@ export default function Portal({ currentUser, onLoginSuccess }) {
         {/* TAB 3: PARRAINAGE & FIDELITE */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "referral" && (
-          <div className="slide-up portal-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "30px" }}>
+          <div className="slide-up" style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
+            <div className="portal-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "30px" }}>
 
             {/* Left: Tiers & Progress */}
             <div>
@@ -983,6 +1001,14 @@ export default function Portal({ currentUser, onLoginSuccess }) {
                 </div>
               </div>
             </div>
+            {/* Close portal-grid */}
+            </div>
+            
+            {/* Section QR Codes de parrainage */}
+            <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <QRCodeSection siteUrl={window.location.origin} referralCode={affiliate?.code} clientName={currentUser?.name} />
+            </div>
+          {/* Close parent flex div */}
           </div>
         )}
 
@@ -1095,5 +1121,86 @@ export default function Portal({ currentUser, onLoginSuccess }) {
         }
       `}</style>
     </section>
+  );
+}
+
+
+function PromosTab({ promoCodes }) {
+  const [copiedCode, setCopiedCode] = React.useState("");
+
+  const handleCopy = (code) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(""), 2000);
+  };
+
+  if (!promoCodes || promoCodes.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-secondary)" }}>
+        <svg style={{ opacity: 0.2, marginBottom: "16px", color: "var(--primary-gold)", width: "48px", height: "48px" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+        <p style={{ fontSize: "1.1rem", marginBottom: "8px" }}>Aucune promotion disponible pour le moment.</p>
+        <p style={{ fontSize: "0.85rem" }}>Revenez régulièrement pour découvrir nos offres exclusives !</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="slide-up">
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+        <svg style={{ color: "var(--primary-gold)", width: "20px", height: "20px" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+        <h3 className="gold-text" style={{ fontSize: "1.3rem", margin: 0 }}>Vos Codes Promo Exclusifs</h3>
+      </div>
+      <p style={{ color: "var(--text-secondary)", marginBottom: "30px", fontSize: "0.9rem" }}>
+        Utilisez ces codes lors de votre réservation ou commande pour bénéficier de réductions exceptionnelles.
+      </p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
+        {promoCodes.map((promo, idx) => (
+          <div key={idx} className="glass-panel pulse-glow-gold" style={{ padding: "24px", border: "1px solid rgba(212,175,55,0.15)", borderRadius: "12px", background: "rgba(212,175,55,0.02)", display: "flex", flexDirection: "column", gap: "16px", position: "relative", overflow: "hidden" }}>
+            
+            <div style={{ position: "absolute", top: 0, right: 0, background: "var(--gold-grad)", color: "#000", fontWeight: "800", fontSize: "0.85rem", padding: "6px 14px", borderBottomLeftRadius: "12px" }}>
+              -{promo.discountPercent}%
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <svg style={{ color: "var(--primary-gold)", width: "16px", height: "16px" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Offre Spéciale</span>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: "1.1rem", fontWeight: "700", color: "#fff", marginBottom: "4px", margin: 0 }}>
+                {promo.clientName && promo.clientName.toLowerCase() !== "tous" ? `Offre pour ${promo.clientName}` : "Offre Privilège"}
+              </h4>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "4px 0 0" }}>
+                Réduction de ${promo.discountPercent}% sur votre prochain soin.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+              <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>Code à utiliser :</span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ flex: 1, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "6px", padding: "10px", textAlign: "center", fontFamily: "monospace", fontSize: "1.1rem", fontWeight: "700", color: "var(--primary-gold)", letterSpacing: "0.05em" }}>
+                  {promo.code}
+                </div>
+                <button onClick={() => handleCopy(promo.code)} className="btn-gold" style={{ padding: "10px 14px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer" }}>
+                  {copiedCode === promo.code ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" style={{ width: "16px", height: "16px" }}><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" style={{ width: "16px", height: "16px" }}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {promo.maxUses && (
+              <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "10px", display: "flex", justifyContent: "space-between" }}>
+                <span>Utilisations :</span>
+                <span style={{ color: "#fff", fontWeight: "600" }}>{promo.currentUses || 0} / {promo.maxUses}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

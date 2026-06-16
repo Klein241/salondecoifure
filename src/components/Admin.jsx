@@ -5,6 +5,10 @@ import {
   Package, ShoppingBag
 } from "lucide-react"
 import AdminFidelite from "./AdminFidelite"
+import { getOrdersAdmin } from "../fidelite"
+import StockManager from "./StockManager"
+import { QRCodeSection } from "./QRCodeGenerator"
+import TresorerieWidget from "./TresorerieWidget"
 import { 
   getAppointments, updateAppointmentStatus, deleteAppointment,
   getServices, addService, updateService, deleteService,
@@ -65,7 +69,7 @@ export default function Admin({ currentUser, onLogout }) {
   const [products, setProducts] = useState([]);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [productForm, setProductForm] = useState({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true });
+  const [productForm, setProductForm] = useState({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true, payable_with_credits: false, credit_discount_pct: 20 });
   const [productImageFile, setProductImageFile] = useState(null);
   const [productImagePreview, setProductImagePreview] = useState('');
   const [productUploading, setProductUploading] = useState(false);
@@ -165,6 +169,19 @@ export default function Admin({ currentUser, onLogout }) {
     if (!window.confirm("Supprimer définitivement ce rendez-vous ?")) return;
     await deleteAppointment(id);
     setMessage({ text: "Rendez-vous supprimé.", type: "success" });
+    loadAllData();
+  };
+
+  const handlePromoteClient = async (id, newRole) => {
+    if (!window.confirm(`Changer le rôle de ce client en ${newRole} ?`)) return;
+    if (supabase) {
+      const { error } = await supabase.from("profiles").update({ role: newRole }).eq("id", id);
+      if (error) {
+        setMessage({ text: "Erreur de mise à jour du rôle.", type: "error" });
+        return;
+      }
+    }
+    setMessage({ text: `Le client a maintenant le rôle ${newRole}.`, type: "success" });
     loadAllData();
   };
 
@@ -454,7 +471,7 @@ export default function Admin({ currentUser, onLogout }) {
     }
     setShowProductForm(false);
     setEditingProduct(null);
-    setProductForm({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true });
+    setProductForm({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true, payable_with_credits: false, credit_discount_pct: 20 });
     setProductImageFile(null);
     setProductImagePreview('');
     setProductUploading(false);
@@ -469,7 +486,9 @@ export default function Admin({ currentUser, onLogout }) {
       price: product.price,
       category: product.category || 'Soin',
       image_url: product.image_url || '',
-      in_stock: product.in_stock !== false
+      in_stock: product.in_stock !== false,
+      payable_with_credits: product.payable_with_credits || false,
+      credit_discount_pct: product.credit_discount_pct || 20
     });
     setProductImagePreview(product.image_url || '');
     setProductImageFile(null);
@@ -590,6 +609,7 @@ export default function Admin({ currentUser, onLogout }) {
             { id: "clients", label: "Clients", icon: Users },
             { id: "services", label: "Services (CRUD)", icon: Scissors },
             { id: "boutique", label: "Boutique", icon: ShoppingBag },
+            { id: "stock", label: "Stock", icon: Package },
             { id: "gallery", label: "Galerie", icon: Image },
             { id: "promo_codes", label: "Codes Promo", icon: Tag },
             { id: "affiliates", label: "Affiliés", icon: Award },
@@ -989,6 +1009,11 @@ export default function Admin({ currentUser, onLogout }) {
           </div>
         )}
 
+        {/* TAB: STOCK */}
+        {activeTab === "stock" && (
+          <StockManager currentUser={currentUser} />
+        )}
+
         {/* TAB 4: SERVICES (CRUD) */}
         {activeTab === "services" && (
           <div>
@@ -1307,7 +1332,7 @@ export default function Admin({ currentUser, onLogout }) {
                 <h3 className="gold-text" style={{ fontSize: "1.4rem", marginBottom: "4px" }}>Gestion de la Boutique</h3>
                 <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{products.length} produit{products.length !== 1 ? "s" : ""} dans la boutique</p>
               </div>
-              <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true }); setProductImageFile(null); setProductImagePreview(''); setShowProductForm(true); }} className="btn-gold" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true, payable_with_credits: false, credit_discount_pct: 20 }); setProductImageFile(null); setProductImagePreview(''); setShowProductForm(true); }} className="btn-gold" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <Plus size={16} /> Ajouter un Produit
               </button>
             </div>
@@ -1746,6 +1771,11 @@ export default function Admin({ currentUser, onLogout }) {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* QR Codes Section */}
+            <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", gap: "18px" }}>
+              <QRCodeSection siteUrl={window.location.origin} />
             </div>
 
             {/* Backups & Actions Section */}

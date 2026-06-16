@@ -8,6 +8,7 @@ import Affiliate from "./components/Affiliate"
 import Portal from "./components/Portal"
 import Admin from "./components/Admin"
 import AdminLogin from "./components/AdminLogin"
+import GerantDashboard from "./components/GerantDashboard"
 import Footer from "./components/Footer"
 import { supabase } from "./supabase"
 import { Sparkles, Gift } from "lucide-react"
@@ -205,6 +206,8 @@ export default function App() {
       <div style={{ background: "#0b0b0b", minHeight: "100vh" }}>
         {currentUser && (currentUser.role === "admin" || currentUser.role === "superadmin") ? (
           <Admin currentUser={currentUser} onLogout={handleLogout} />
+        ) : currentUser && currentUser.role === "gerant" ? (
+          <GerantDashboard currentUser={currentUser} onLogout={handleLogout} />
         ) : (
           <AdminLogin onLoginSuccess={handleLoginSuccess} />
         )}
@@ -266,7 +269,7 @@ export default function App() {
             }}
           />
         )}
-        {currentRoute === "boutique" && <Shop />}
+        {currentRoute === "boutique" && <Shop currentUser={currentUser} />}
         {currentRoute === "affiliate" && (
           <Affiliate onGoToPortal={handleGoToPortal} />
         )}

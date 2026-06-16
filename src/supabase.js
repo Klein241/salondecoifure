@@ -742,10 +742,10 @@ export async function getProducts() {
 export async function addProduct(product) {
   if (useSupabase()) {
     try {
-      const { name, description, price, category, image_url, in_stock } = product;
+      const { name, description, price, category, image_url, in_stock, payable_with_credits, credit_discount_pct, stock_quantity, stock_alert_threshold, stock_enabled } = product;
       const { data, error } = await supabase
         .from('products')
-        .insert([{ name, description, price: Number(price), category, image_url, in_stock }])
+        .insert([{ name, description, price: Number(price), category, image_url, in_stock, payable_with_credits: payable_with_credits || false, credit_discount_pct: credit_discount_pct || 20, stock_quantity: stock_quantity || 0, stock_alert_threshold: stock_alert_threshold || 5, stock_enabled: stock_enabled || false }])
         .select();
       if (error) throw error;
       return data[0];

@@ -578,12 +578,49 @@ export default function AdminFidelite({ currentUser }) {
       {/* ── PARAMÈTRES ── */}
       {activeSection === "parametres" && settings && (
         <div>
+          {/* Question Fondatrice */}
+          <div style={{
+            background: `linear-gradient(135deg, ${C.goldDark}22, ${C.gold}22)`,
+            border: `1px solid ${C.gold}`, borderRadius: 16, padding: "24px", marginBottom: 30
+          }}>
+            <h4 style={{ color: C.gold, margin: "0 0 12px", fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8 }}>
+              <Crown size={20} /> QUESTION FONDATRICE
+            </h4>
+            <p style={{ color: C.text, fontSize: "0.9rem", margin: "0 0 16px", lineHeight: 1.5 }}>
+              Lors de vos meilleures promos (Tabaski, fêtes...), quel est le <strong>rabais maximum</strong> que vous accordez sur vos services TOUT EN RESTANT BÉNÉFICIAIRE ?
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <input
+                type="number"
+                value={String(settings.reduction_max_acceptable_pct ?? "")}
+                onChange={e => setSettings(prev => ({ ...prev, reduction_max_acceptable_pct: Number(e.target.value) }))}
+                style={{
+                  background: C.bg, border: `2px solid ${C.goldDark}`, borderRadius: 10,
+                  padding: "12px", color: C.gold, fontSize: "1.2rem", fontWeight: 700,
+                  width: 100, textAlign: "center", outline: "none"
+                }}
+              />
+              <span style={{ color: C.gold, fontSize: "1.2rem", fontWeight: 700 }}>%</span>
+            </div>
+            {(() => {
+              const R = Number(settings.reduction_max_acceptable_pct) || 40;
+              return (
+                <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 10, padding: "12px", fontSize: "0.85rem" }}>
+                  <p style={{ margin: "0 0 6px", color: C.muted }}>Ce plafond verrouille tout le système :</p>
+                  <p style={{ margin: "0 0 4px", color: C.text }}>↳ Plafond crédits / service : <strong style={{ color: C.orange }}>{Math.floor(R * 0.8)}%</strong> (Max déduction)</p>
+                  <p style={{ margin: "0 0 4px", color: C.text }}>↳ Réduction boutique max : <strong style={{ color: C.blue }}>{Math.floor(R * 0.9)}%</strong></p>
+                  <p style={{ margin: 0, color: C.text }}>↳ Cashback automatique : <strong style={{ color: C.green }}>{Math.floor(R * 0.1)}%</strong> (Points gagnés)</p>
+                </div>
+              )
+            })()}
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
             {[
               { key: "valeur_point_fcfa", label: "Valeur 1 point (FCFA)", type: "number" },
-              { key: "taux_cashback_pct", label: "Cashback auto (%)", type: "number" },
+              { key: "taux_cashback_pct_override", label: "Cashback auto (%) [Force optionnel]", type: "number" },
               { key: "expiration_points_gagnes_jours", label: "Expiration points gagnés (jours)", type: "number" },
-              { key: "plafond_deduction_pct", label: "Plafond déduction / service (%)", type: "number" },
+              { key: "plafond_deduction_pct_override", label: "Plafond déduction / service (%) [Force optionnel]", type: "number" },
               { key: "montant_avance_resa", label: "Avance réservation (FCFA)", type: "number" },
               { key: "taux_reduction_resa_pct", label: "Réduction prochain RDV (%)", type: "number" },
               { key: "points_parrainage_parrain", label: "Points parrainage (parrain)", type: "number" },
@@ -615,7 +652,7 @@ export default function AdminFidelite({ currentUser }) {
           />
 
           {/* Prévisualisation dynamique */}
-          {settings.valeur_point_fcfa && settings.taux_cashback_pct && (
+          {settings.valeur_point_fcfa && (
             <div style={{
               background: "rgba(212,175,55,0.05)", border: "1px solid rgba(212,175,55,0.15)",
               borderRadius: 14, padding: "16px", marginBottom: 20
@@ -625,15 +662,19 @@ export default function AdminFidelite({ currentUser }) {
               </p>
               {(() => {
                 const vpf = Math.max(0.1, Number(settings.valeur_point_fcfa) || 10)
+                const R = Number(settings.reduction_max_acceptable_pct) || 40;
+                const plafond_deduction_pct = settings.plafond_deduction_pct_override ?? Math.floor(R * 0.8);
+                const taux_cashback_pct = settings.taux_cashback_pct_override ?? Math.floor(R * 0.1);
+                
                 const prix = 15000
                 const seuil = Number(settings.points_min_pour_utiliser) || 0
                 const solde = 500
                 const seuilOk = solde >= seuil
-                const plafond_pts = Math.floor(prix * (settings.plafond_deduction_pct / 100) / vpf)
+                const plafond_pts = Math.floor(prix * (plafond_deduction_pct / 100) / vpf)
                 const pts_utilises = seuilOk ? Math.min(plafond_pts, solde) : 0
                 const reduction_max = pts_utilises * vpf
                 const prix_cash = prix - reduction_max
-                const cashback = Math.floor(prix_cash * (settings.taux_cashback_pct / 100) / vpf)
+                const cashback = Math.floor(prix_cash * (taux_cashback_pct / 100) / vpf)
                 return (
                   <>
                     <p style={{ margin: "0 0 4px", color: C.text, fontSize: "0.82rem" }}>

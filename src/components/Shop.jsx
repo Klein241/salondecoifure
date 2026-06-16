@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from "react"
-import { ShoppingBag, ShoppingCart, X, Plus, Minus, MessageCircle, Package, Trash2, Search, Eye, Star, Zap, Check } from "lucide-react"
+import { ShoppingBag, ShoppingCart, X, Plus, Minus, MessageCircle, Package, Trash2, Search, Eye, Star, Zap, Check, Gem } from "lucide-react"
 import { getProducts, getSiteSettings } from "../supabase"
+import { getFideliteSettings, getWallet, payerBoutique, createOrder } from "../fidelite"
 
-export default function Shop() {
+export default function Shop({ currentUser, isTab = false }) {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [settings, setSettings] = useState({ whatsapp: '+241077004073', site_name: 'The Alpha Beauty' });
+  const [fideliteSettings, setFideliteSettings] = useState(null);
+  const [wallet, setWallet] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [addedFeedback, setAddedFeedback] = useState(null); // id of product just added
+  const [addedFeedback, setAddedFeedback] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -20,14 +24,21 @@ export default function Shop() {
       setProducts(prods || []);
       const s = await getSiteSettings();
       if (s) setSettings(s);
+      
+      const fSettings = await getFideliteSettings();
+      setFideliteSettings(fSettings);
+      
+      if (currentUser?.id) {
+        const w = await getWallet(currentUser.id);
+        setWallet(w);
+      }
       setLoading(false);
     }
     load();
-  }, []);
+  }, [currentUser]);
 
   const categories = ['Tous', ...new Set((products || []).map(p => p.category).filter(Boolean))];
 
-  // Show ALL products (including out of stock) — out of stock are greyed
   const filtered = products.filter(p => {
     const matchCat = selectedCategory === 'Tous' || p.category === selectedCategory;
     const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,15 +55,11 @@ export default function Shop() {
       }
       return [...prev, { ...product, qty: 1 }];
     });
-    // Micro-feedback
     setAddedFeedback(product.id);
     setTimeout(() => setAddedFeedback(null), 1200);
   };
 
-  const removeFromCart = (id) => {
-    setCart(prev => prev.filter(i => i.id !== id));
-  };
-
+  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id));
   const updateQty = (id, delta) => {
     setCart(prev => prev.map(i => {
       if (i.id !== id) return i;
@@ -65,11 +72,11 @@ export default function Shop() {
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
 
-  const getWhatsAppUrl = (items, total) => {
+  const getWhatsAppUrl = (items, total, extraMsg = '') => {
     const wa = (settings.whatsapp || '+241077004073').replace(/\D/g, '');
     const lines = items.map(i => `  • ${i.name} x${i.qty} = ${(i.price * i.qty).toLocaleString('fr-FR')} FCFA`);
     const msg = encodeURIComponent(
-      `Bonjour ${settings.site_name} !\n\nJe souhaite commander :\n${lines.join('\n')}\n\nTotal : ${total.toLocaleString('fr-FR')} FCFA\n\nMerci de confirmer ma commande. 🙏`
+      `Bonjour ${settings.site_name} !\n\nJe souhaite commander :\n${lines.join('\n')}\n\nTotal initial : ${total.toLocaleString('fr-FR')} FCFA${extraMsg}\n\nMerci de confirmer ma commande. 🙏`
     );
     return `https://wa.me/${wa}?text=${msg}`;
   };
@@ -82,8 +89,81 @@ export default function Shop() {
   const handleDirectOrder = (product) => {
     if (product.in_stock === false) return;
     const items = [{ ...product, qty: 1 }];
-    const url = getWhatsAppUrl(items, product.price);
-    window.open(url, '_blank');
+    window.open(getWhatsAppUrl(items, product.price), '_blank');
+  };
+
+  const handlePayWithCredits = async (product) => {
+    if (!currentUser) {
+      alert("Veuillez vous connecter pour utiliser vos crédits prépayés.");
+      return;
+    }
+    if (!wallet || !fideliteSettings) {
+      alert("Impossible de charger votre portefeuille.");
+      return;
+    }
+    const solde = (wallet.points_achetes || 0) + (wallet.points_gagnes || 0);
+    const vpf = Math.max(0.1, Number(fideliteSettings.valeur_point_fcfa) || 10);
+    const reductionMaxFcfa = product.price * ((product.credit_discount_pct || 20) / 100);
+    const pointsNecessaires = Math.floor(reductionMaxFcfa / vpf);
+
+    if (solde < pointsNecessaires) {
+      alert(`Solde insuffisant. Vous avez ${solde} pts, il vous faut ${pointsNecessaires} pts pour la réduction.`);
+      return;
+    }
+
+    if (!window.confirm(`Vous allez utiliser ${pointsNecessaires} pts pour une réduction de ${reductionMaxFcfa} FCFA sur ${product.name}. Le reste sera à payer par WhatsApp ou en boutique. Confirmer ?`)) {
+      return;
+    }
+
+    setProcessingPayment(true);
+    try {
+      // 1. Create order
+      const orderData = {
+        user_id: currentUser.id,
+        client_name: currentUser.name,
+        client_phone: currentUser.phone,
+        items: [{ ...product, qty: 1 }],
+        total_fcfa: product.price,
+        discount_fcfa: reductionMaxFcfa,
+        payment_method: 'credits',
+        points_used: pointsNecessaires,
+        status: 'pending',
+        notes: 'Achat via crédits (points)'
+      };
+      
+      const newOrder = await createOrder(orderData);
+      if (!newOrder) {
+        alert("Erreur lors de la création de la commande.");
+        setProcessingPayment(false);
+        return;
+      }
+
+      // 2. Deduct points
+      const result = await payerBoutique(currentUser.id, newOrder.id, product.price, pointsNecessaires, currentUser.id);
+      
+      if (result.success) {
+        const extra = `\nRéduction par points : -${reductionMaxFcfa} FCFA\nReste à payer : ${result.prixCash} FCFA`;
+        alert("Paiement par points réussi ! Vous allez être redirigé vers WhatsApp pour finaliser la commande.");
+        const items = [{ ...product, qty: 1 }];
+        window.open(getWhatsAppUrl(items, product.price, extra), '_blank');
+        
+        // Update local wallet visually
+        const ptsGagnesDelta = -Math.min(pointsNecessaires, wallet.points_gagnes || 0);
+        const ptsAchetesDelta = -(pointsNecessaires + ptsGagnesDelta);
+        setWallet({
+          ...wallet,
+          points_achetes: Math.max(0, (wallet.points_achetes || 0) + ptsAchetesDelta),
+          points_gagnes: Math.max(0, (wallet.points_gagnes || 0) + ptsGagnesDelta)
+        });
+        setSelectedProduct(null);
+      } else {
+        alert("Erreur de paiement : " + result.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Une erreur est survenue.");
+    }
+    setProcessingPayment(false);
   };
 
   const C = {
@@ -92,7 +172,7 @@ export default function Shop() {
   };
 
   return (
-    <section id="boutique" style={{ padding: '100px 24px 60px', background: '#0d0d0d', minHeight: '100vh', position: 'relative', fontFamily: "'Inter', sans-serif" }}>
+    <section id="boutique" style={{ padding: isTab ? '20px 0 60px' : '100px 24px 60px', background: isTab ? 'transparent' : '#0d0d0d', minHeight: isTab ? 'auto' : '100vh', position: 'relative', fontFamily: "'Inter', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
@@ -106,7 +186,7 @@ export default function Shop() {
           </h2>
           <div style={{ width: '60px', height: '2px', background: `linear-gradient(90deg, ${C.goldDark}, ${C.gold})`, margin: '0 auto 16px' }} />
           <p style={{ color: C.muted, maxWidth: '500px', margin: '0 auto', fontSize: '0.9rem', lineHeight: '1.6' }}>
-            Découvrez notre sélection de produits de beauté premium. Commandez directement via WhatsApp.
+            Découvrez notre sélection de produits de beauté premium. Commandez directement via WhatsApp ou utilisez vos Crédits (Points).
           </p>
         </div>
 
@@ -189,7 +269,9 @@ export default function Shop() {
                     transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                     opacity: outOfStock ? 0.5 : 1,
                     filter: outOfStock ? 'grayscale(0.6)' : 'none',
-                    position: 'relative'
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column'
                   }}
                   onMouseEnter={e => { if (!outOfStock) { e.currentTarget.style.borderColor = 'rgba(212,175,55,0.35)'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)'; }}}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = outOfStock ? 'rgba(255,255,255,0.04)' : 'rgba(212,175,55,0.1)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -274,14 +356,14 @@ export default function Shop() {
                   </div>
 
                   {/* Info */}
-                  <div style={{ padding: '20px' }}>
+                  <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <h3 style={{ fontSize: '1.05rem', marginBottom: '8px', fontWeight: '600', color: '#fff' }}>{product.name}</h3>
                     {product.description && (
-                      <p style={{ fontSize: '0.82rem', color: C.muted, lineHeight: '1.5', marginBottom: '16px' }}>
+                      <p style={{ fontSize: '0.82rem', color: C.muted, lineHeight: '1.5', marginBottom: '16px', flex: 1 }}>
                         {product.description.length > 100 ? product.description.substring(0, 100) + '...' : product.description}
                       </p>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', marginTop: 'auto' }}>
                       <span style={{ fontSize: '1.3rem', fontWeight: '700', color: C.gold }}>
                         {Number(product.price).toLocaleString('fr-FR')} F
                       </span>
@@ -318,26 +400,53 @@ export default function Shop() {
 
                     {/* Direct WhatsApp order button */}
                     {!outOfStock && (
-                      <button
-                        onClick={() => handleDirectOrder(product)}
-                        style={{
-                          width: '100%',
-                          background: 'rgba(37,211,102,0.08)',
-                          border: `1px solid rgba(37,211,102,0.25)`,
-                          borderRadius: '10px',
-                          color: C.green,
-                          padding: '10px',
-                          cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                          fontWeight: '600', fontSize: '0.8rem',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,211,102,0.15)'; e.currentTarget.style.borderColor = 'rgba(37,211,102,0.4)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(37,211,102,0.08)'; e.currentTarget.style.borderColor = 'rgba(37,211,102,0.25)'; }}
-                      >
-                        <MessageCircle size={15} />
-                        Commander directement
-                      </button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <button
+                          onClick={() => handleDirectOrder(product)}
+                          style={{
+                            width: '100%',
+                            background: 'rgba(37,211,102,0.08)',
+                            border: `1px solid rgba(37,211,102,0.25)`,
+                            borderRadius: '10px',
+                            color: C.green,
+                            padding: '10px',
+                            cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                            fontWeight: '600', fontSize: '0.8rem',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,211,102,0.15)'; e.currentTarget.style.borderColor = 'rgba(37,211,102,0.4)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(37,211,102,0.08)'; e.currentTarget.style.borderColor = 'rgba(37,211,102,0.25)'; }}
+                        >
+                          <MessageCircle size={15} />
+                          Commander directement
+                        </button>
+                        
+                        {product.payable_with_credits && (
+                          <button
+                            onClick={() => handlePayWithCredits(product)}
+                            disabled={processingPayment}
+                            style={{
+                              width: '100%',
+                              background: 'rgba(212,175,55,0.08)',
+                              border: `1px solid rgba(212,175,55,0.25)`,
+                              borderRadius: '10px',
+                              color: C.gold,
+                              padding: '10px',
+                              cursor: processingPayment ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                              fontWeight: '600', fontSize: '0.8rem',
+                              transition: 'all 0.2s',
+                              opacity: processingPayment ? 0.6 : 1
+                            }}
+                            onMouseEnter={e => { if(!processingPayment) { e.currentTarget.style.background = 'rgba(212,175,55,0.15)'; e.currentTarget.style.borderColor = 'rgba(212,175,55,0.4)'; } }}
+                            onMouseLeave={e => { if(!processingPayment) { e.currentTarget.style.background = 'rgba(212,175,55,0.08)'; e.currentTarget.style.borderColor = 'rgba(212,175,55,0.25)'; } }}
+                          >
+                            <Gem size={15} />
+                            Payer avec mes Crédits (-{product.credit_discount_pct || 20}%)
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -461,8 +570,29 @@ export default function Shop() {
                   onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                 >
                   <MessageCircle size={16} />
-                  Commander via WhatsApp
+                  WhatsApp
                 </button>
+                
+                {selectedProduct.payable_with_credits && (
+                  <button
+                    onClick={() => { handlePayWithCredits(selectedProduct); }}
+                    style={{
+                      flex: 1, minWidth: '100%',
+                      background: 'rgba(212,175,55,0.08)',
+                      border: `1px solid rgba(212,175,55,0.25)`,
+                      borderRadius: '12px',
+                      color: C.gold, fontWeight: 700,
+                      padding: '14px 20px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      fontSize: '0.92rem', transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                  >
+                    <Gem size={16} />
+                    Payer avec mes Crédits (-{selectedProduct.credit_discount_pct || 20}%)
+                  </button>
+                )}
               </div>
             </div>
           </div>

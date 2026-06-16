@@ -3,7 +3,7 @@ import { getGalleryImages } from "../supabase"
 import { Sparkles, ImageOff } from "lucide-react"
 import Lightbox from "./Lightbox"
 
-export default function Gallery() {
+export default function Gallery({ isTab = false }) {
   const [activeFilter, setActiveFilter] = useState("Tous");
   const [isOpen, setIsOpen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -44,8 +44,8 @@ export default function Gallery() {
     <section
       id="gallery"
       style={{
-        padding: "100px 24px",
-        background: "#0b0b0b",
+        padding: isTab ? "20px 0" : "100px 24px",
+        background: isTab ? "transparent" : "#0b0b0b",
         position: "relative",
       }}
     >
