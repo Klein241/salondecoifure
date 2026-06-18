@@ -400,18 +400,25 @@ export default function Admin({ currentUser, onLogout }) {
 
   // ---------- GALLERY HANDLERS ----------
   const handleGalleryFilesChange = (e) => {
-    const files = Array.from(e.target.files).slice(0, 8);
-    setGalleryUploadFiles(files);
-    const previews = [];
-    files.forEach(f => {
+    const newFiles = Array.from(e.target.files);
+    if (newFiles.length === 0) return;
+    const combined = [...galleryUploadFiles, ...newFiles].slice(0, 8);
+    const readFile = (file) => new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        previews.push(ev.target.result);
-        if (previews.length === files.length) setGalleryUploadPreviews([...previews]);
-      };
-      reader.readAsDataURL(f);
+      reader.onload = (ev) => resolve(ev.target.result);
+      reader.readAsDataURL(file);
     });
-    if (files.length === 0) setGalleryUploadPreviews([]);
+    Promise.all(combined.map(readFile)).then(previews => {
+      setGalleryUploadFiles(combined);
+      setGalleryUploadPreviews(previews);
+    });
+  };
+
+  const handleRemoveGalleryPreview = (indexToRemove) => {
+    const newFiles = galleryUploadFiles.filter((_, i) => i !== indexToRemove);
+    const newPreviews = galleryUploadPreviews.filter((_, i) => i !== indexToRemove);
+    setGalleryUploadFiles(newFiles);
+    setGalleryUploadPreviews(newPreviews);
   };
 
   const handleServiceImageChange = (e) => {
@@ -432,25 +439,27 @@ export default function Admin({ currentUser, onLogout }) {
     }
     setGalleryUploading(true);
     let successCount = 0;
-    for (let i = 0; i < galleryUploadFiles.length; i++) {
+    const total = galleryUploadFiles.length;
+    const batchGroupId = "grp_" + Date.now() + "_" + Math.random().toString(36).substr(2, 8);
+    for (let i = 0; i < total; i++) {
       const file = galleryUploadFiles[i];
-      setMessage({ text: `Upload ${i + 1}/${galleryUploadFiles.length}...`, type: "info" });
+      setMessage({ text: "Upload " + (i + 1) + "/" + total + " en cours...", type: "info" });
       const uploaded = await uploadImage(file, "gallery");
       if (uploaded) {
-        const angle = galleryUploadFiles.length > 1 ? " (vue " + (i + 1) + "/" + galleryUploadFiles.length + ")" : "";
         await addGalleryImage({
-          title: galleryForm.title + angle,
+          title: galleryForm.title,
           description: galleryForm.description,
           category: galleryForm.category,
-          image_url: uploaded
+          image_url: uploaded,
+          group_id: batchGroupId
         });
         successCount++;
       }
     }
     if (successCount > 0) {
-      setMessage({ text: successCount + " image(s) publiee(s) dans la galerie !", type: "success" });
+      setMessage({ text: successCount + "/" + total + " image(s) publiee(s) !", type: "success" });
     } else {
-      setMessage({ text: "Echec de upload. Verifiez les politiques Supabase Storage.", type: "error" });
+      setMessage({ text: "Echec upload. Executez supabase_gallery_fix_v2.sql dans Supabase.", type: "error" });
     }
     setGalleryForm({ title: "", description: "", category: "Salon" });
     setGalleryUploadFiles([]);
@@ -1848,6 +1857,11 @@ export default function Admin({ currentUser, onLogout }) {
     </section>
   );
 }
+
+
+
+
+
 
 
 

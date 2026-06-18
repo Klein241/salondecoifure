@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+﻿import { createClient } from "@supabase/supabase-js"
 import { servicesList, staffList, galleryItems, getStoredData, setStoredData } from "./data"
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ""
@@ -611,6 +611,7 @@ export async function getGalleryImages() {
       if (error) throw error
       return data.map(img => ({
         id: img.id,
+        group_id: img.group_id || img.id,
         title: img.title,
         description: img.description || "",
         category: img.category || "Salon",
@@ -641,7 +642,8 @@ export async function addGalleryImage(image) {
           title: image.title,
           description: image.description || "",
           category: image.category || "Salon",
-          image_url: image.image_url
+          image_url: image.image_url,
+          group_id: image.group_id || null
         }])
         .select()
       if (error) throw error
@@ -801,3 +803,4 @@ export async function deleteProduct(id) {
   setStoredData('products', products.filter(p => p.id !== id));
   return true;
 }
+

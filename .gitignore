@@ -3,3 +3,6 @@ node_modules/
 dist/
 *.metadata.json
 *.resolved*
+
+# Local Netlify folder
+.netlify
