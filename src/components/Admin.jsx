@@ -1545,7 +1545,7 @@ export default function Admin({ currentUser, onLogout }) {
                 <form onSubmit={handleAddGalleryImage} className="glass-panel" style={{ maxWidth: "520px", width: "100%", padding: "32px", border: "1px solid var(--primary-gold)", display: "flex", flexDirection: "column", gap: "16px", maxHeight: "90vh", overflowY: "auto" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <h3 className="gold-text">Ajouter une photo</h3>
-                    <button type="button" onClick={() => { setShowGalleryForm(false); setGalleryUploadPreview(""); setGalleryUploadFile(null); }} style={{ background: "none", border: "none", color: "var(--primary-gold)", cursor: "pointer" }}><X size={20} /></button>
+                    <button type="button" onClick={() => { setShowGalleryForm(false); setGalleryUploadPreviews([]); setGalleryUploadFiles([]); }} style={{ background: "none", border: "none", color: "var(--primary-gold)", cursor: "pointer" }}><X size={20} /></button>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -1570,10 +1570,14 @@ export default function Admin({ currentUser, onLogout }) {
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Image (choisir un fichier) :</label>
-                    <input type="file" accept="image/*" onChange={handleGalleryFileChange} style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }} />
-                    {galleryUploadPreview && (
-                      <img src={galleryUploadPreview} alt="preview" style={{ width: "100%", height: "200px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(212,175,55,0.4)" }} />
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Images (choisir un ou plusieurs fichiers) :</label>
+                    <input type="file" accept="image/*" multiple onChange={handleGalleryFilesChange} style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }} />
+                    {galleryUploadPreviews.length > 0 && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: "8px", marginTop: "8px" }}>
+                        {galleryUploadPreviews.map((src, i) => (
+                          <img key={i} src={src} alt={`preview-${i}`} style={{ width: "100%", height: "100px", objectFit: "cover", borderRadius: "6px", border: "1px solid rgba(212,175,55,0.4)" }} />
+                        ))}
+                      </div>
                     )}
                   </div>
 
