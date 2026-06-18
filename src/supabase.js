@@ -751,10 +751,10 @@ export async function getProducts() {
 export async function addProduct(product) {
   if (useSupabase()) {
     try {
-      const { name, description, price, category, image_url, in_stock, payable_with_credits, credit_discount_pct, stock_quantity, stock_alert_threshold, stock_enabled } = product;
+      const { name, description, price, category, image_url, images, in_stock, payable_with_credits, credit_discount_pct, stock_quantity, stock_alert_threshold, stock_enabled } = product;
       const { data, error } = await supabase
         .from('products')
-        .insert([{ name, description, price: Number(price), category, image_url, in_stock, payable_with_credits: payable_with_credits || false, credit_discount_pct: credit_discount_pct || 20, stock_quantity: stock_quantity || 0, stock_alert_threshold: stock_alert_threshold || 5, stock_enabled: stock_enabled || false }])
+        .insert([{ name, description, price: Number(price), category, image_url, images: images || [], in_stock, payable_with_credits: payable_with_credits || false, credit_discount_pct: credit_discount_pct || 20, stock_quantity: stock_quantity || 0, stock_alert_threshold: stock_alert_threshold || 5, stock_enabled: stock_enabled || false }])
         .select();
       if (error) throw error;
       return data[0];
@@ -804,3 +804,55 @@ export async function deleteProduct(id) {
   return true;
 }
 
+
+// ===================== GALLERY CATEGORIES =====================
+export async function getGalleryCategories() {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('gallery_categories')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Error fetching gallery categories:', e);
+    }
+  }
+  return getStoredData('gallery_categories', []);
+}
+
+export async function addGalleryCategory(cat) {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('gallery_categories')
+        .insert([{ name: cat.name, parent_id: cat.parent_id || null }])
+        .select();
+      if (error) throw error;
+      return data[0];
+    } catch (e) {
+      console.error('Error adding gallery category:', e);
+    }
+  }
+  const cats = getStoredData('gallery_categories', []);
+  const newCat = { id: 'cat_' + Date.now(), name: cat.name, parent_id: cat.parent_id || null, created_at: new Date().toISOString() };
+  cats.push(newCat);
+  setStoredData('gallery_categories', cats);
+  return newCat;
+}
+
+export async function deleteGalleryCategory(id) {
+  if (useSupabase()) {
+    try {
+      const { error } = await supabase.from('gallery_categories').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error('Error deleting gallery category:', e);
+    }
+  }
+  const cats = getStoredData('gallery_categories', []);
+  setStoredData('gallery_categories', cats.filter(c => c.id !== id && c.parent_id !== id));
+  return true;
+}

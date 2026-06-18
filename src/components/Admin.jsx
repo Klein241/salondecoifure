@@ -16,7 +16,7 @@ import {
   getStaff, addStaff, deleteStaff,
   getAffiliates, saveAffiliate, supabase,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
-  uploadImage, addGalleryImage, deleteGalleryImage, getGalleryImages,
+  uploadImage, addGalleryImage, deleteGalleryImage, getGalleryImages, getGalleryCategories, addGalleryCategory, deleteGalleryCategory,
   getProducts, addProduct, updateProduct, deleteProduct,
   getSiteSettings, updateSiteSettings
 } from "../supabase"
@@ -60,6 +60,10 @@ export default function Admin({ currentUser, onLogout }) {
 
   // Gallery states
   const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryCategories, setGalleryCategories] = useState([]);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatParent, setNewCatParent] = useState('');
+  const [selectedUploadCat, setSelectedUploadCat] = useState('');
   const [showGalleryForm, setShowGalleryForm] = useState(false);
   const [galleryForm, setGalleryForm] = useState({ title: "", description: "", category: "Salon" });
   const [galleryUploadFiles, setGalleryUploadFiles] = useState([]);
@@ -74,6 +78,8 @@ export default function Admin({ currentUser, onLogout }) {
   const [productForm, setProductForm] = useState({ name: '', description: '', price: '', category: 'Soin', image_url: '', in_stock: true, payable_with_credits: false, credit_discount_pct: 20 });
   const [productImageFile, setProductImageFile] = useState(null);
   const [productImagePreview, setProductImagePreview] = useState('');
+  const [productExtraFiles, setProductExtraFiles] = useState([]);
+  const [productExtraPreviews, setProductExtraPreviews] = useState([]);
   const [productUploading, setProductUploading] = useState(false);
 
   // Site settings state
@@ -111,6 +117,8 @@ export default function Admin({ currentUser, onLogout }) {
       // Load gallery images
       const gallery = await getGalleryImages();
       setGalleryImages(gallery || []);
+      const cats = await getGalleryCategories();
+      setGalleryCategories(cats || []);
 
       // Load products (boutique)
       const prods = await getProducts();
@@ -451,7 +459,8 @@ export default function Admin({ currentUser, onLogout }) {
           description: galleryForm.description,
           category: galleryForm.category,
           image_url: uploaded,
-          group_id: batchGroupId
+          group_id: batchGroupId,
+          subcategory_id: selectedUploadCat || null
         });
         successCount++;
       }
@@ -479,16 +488,44 @@ export default function Admin({ currentUser, onLogout }) {
     }
   };
 
+  const handleProductExtraImages = (e) => {
+    const newFiles = Array.from(e.target.files);
+    if (newFiles.length === 0) return;
+    const combined = [...productExtraFiles, ...newFiles].slice(0, 7); // 1 principale + 7 = 8 total
+    const readFile = (file) => new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = ev => resolve(ev.target.result);
+      reader.readAsDataURL(file);
+    });
+    Promise.all(combined.map(readFile)).then(previews => {
+      setProductExtraFiles(combined);
+      setProductExtraPreviews(previews);
+    });
+  };
+
+  const handleRemoveProductExtra = (i) => {
+    setProductExtraFiles(productExtraFiles.filter((_, idx) => idx !== i));
+    setProductExtraPreviews(productExtraPreviews.filter((_, idx) => idx !== i));
+  };
+
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     setProductUploading(true);
     let image_url = productForm.image_url || null;
     if (productImageFile) {
-      setMessage({ text: 'Upload image produit...', type: 'info' });
+      setMessage({ text: 'Upload image principale...', type: 'info' });
       const uploaded = await uploadImage(productImageFile, 'product-images');
       if (uploaded) image_url = uploaded;
     }
-    const formatted = { ...productForm, price: Number(productForm.price), image_url };
+    // Upload extra images
+    const extraUrls = [];
+    for (let i = 0; i < productExtraFiles.length; i++) {
+      setMessage({ text: 'Upload image ' + (i + 2) + '/' + (productExtraFiles.length + 1) + '...', type: 'info' });
+      const url = await uploadImage(productExtraFiles[i], 'product-images');
+      if (url) extraUrls.push(url);
+    }
+    const images = image_url ? [image_url, ...extraUrls] : extraUrls;
+    const formatted = { ...productForm, price: Number(productForm.price), image_url, images };
     if (editingProduct) {
       const result = await updateProduct(editingProduct.id, formatted);
       if (result) setMessage({ text: 'Produit mis a jour !', type: 'success' });
@@ -1402,9 +1439,21 @@ export default function Admin({ currentUser, onLogout }) {
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Image du produit :</label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Image principale :</label>
                     <input type="file" accept="image/*" onChange={handleProductImageChange} style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }} />
-                    {productImagePreview && <img src={productImagePreview} alt="preview" style={{ width: "100%", height: "160px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(212,175,55,0.4)" }} />}
+                    {productImagePreview && <img src={productImagePreview} alt="preview" style={{ width: "100%", height: "140px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(212,175,55,0.4)" }} />}
+                    <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "8px" }}>Images supplementaires (max 7) :</label>
+                    <input type="file" accept="image/*" multiple onChange={handleProductExtraImages} style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }} />
+                    {productExtraPreviews.length > 0 && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", marginTop: "6px" }}>
+                        {productExtraPreviews.map((src, i) => (
+                          <div key={i} style={{ position: "relative" }}>
+                            <img src={src} alt={"extra-" + i} style={{ width: "100%", height: "70px", objectFit: "cover", borderRadius: "6px", border: "1px solid rgba(212,175,55,0.3)" }} />
+                            <button type="button" onClick={() => handleRemoveProductExtra(i)} style={{ position: "absolute", top: "2px", right: "2px", background: "rgba(0,0,0,0.7)", border: "none", borderRadius: "50%", width: "18px", height: "18px", color: "#ff6b6b", cursor: "pointer", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>x</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                     <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>é OU é URL de l'image :</label>
@@ -1548,6 +1597,45 @@ export default function Admin({ currentUser, onLogout }) {
               </button>
             </div>
 
+            {/* Gestion des Categories de Galerie */}
+            <div className="glass-panel" style={{ padding: "20px", border: "1px solid rgba(212,175,55,0.1)", borderRadius: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                <h4 style={{ fontSize: "1rem", color: "var(--primary-gold)", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <FolderOpen size={16} /> Gestion des Categories
+                </h4>
+                <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>{galleryCategories.filter(c => !c.parent_id).length} cat. | {galleryCategories.filter(c => c.parent_id).length} sous-cat.</span>
+              </div>
+              <div style={{ display: "flex", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
+                <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Nom de la categorie..." style={{ flex: 1, minWidth: "140px", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none", fontSize: "0.85rem" }} />
+                <select value={newCatParent} onChange={e => setNewCatParent(e.target.value)} style={{ padding: "8px 10px", background: "#121212", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none", fontSize: "0.82rem" }}>
+                  <option value="">-- Categorie parente (laisser vide pour principale) --</option>
+                  {galleryCategories.filter(c => !c.parent_id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button type="button" onClick={async () => { if (!newCatName.trim()) return; const created = await addGalleryCategory({ name: newCatName.trim(), parent_id: newCatParent || null }); if (created) { setGalleryCategories(prev => [...prev, created]); setNewCatName(""); setNewCatParent(""); } }} className="btn-gold" style={{ padding: "8px 14px", fontSize: "0.82rem" }}>
+                  <Plus size={14} /> Ajouter
+                </button>
+              </div>
+              {galleryCategories.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {galleryCategories.filter(c => !c.parent_id).map(parent => (
+                    <div key={parent.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--primary-gold)", padding: "4px 10px", background: "rgba(212,175,55,0.08)", borderRadius: "20px", border: "1px solid rgba(212,175,55,0.2)", display: "flex", alignItems: "center", gap: "6px" }}>
+                        {parent.name}
+                        <button type="button" onClick={async () => { await deleteGalleryCategory(parent.id); setGalleryCategories(prev => prev.filter(c => c.id !== parent.id && c.parent_id !== parent.id)); }} style={{ background: "none", border: "none", color: "#ff6b6b", cursor: "pointer", fontSize: "12px", lineHeight: 1, padding: 0 }}>×</button>
+                      </span>
+                      {galleryCategories.filter(c => c.parent_id === parent.id).map(sub => (
+                        <span key={sub.id} style={{ fontSize: "0.72rem", color: "var(--text-secondary)", padding: "3px 10px", background: "rgba(255,255,255,0.03)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.07)", marginLeft: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          └ {sub.name}
+                          <button type="button" onClick={async () => { await deleteGalleryCategory(sub.id); setGalleryCategories(prev => prev.filter(c => c.id !== sub.id)); }} style={{ background: "none", border: "none", color: "#ff6b6b", cursor: "pointer", fontSize: "11px", lineHeight: 1, padding: 0 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+
             {/* Add Image Form Modal */}
             {showGalleryForm && (
               <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
@@ -1577,6 +1665,20 @@ export default function Admin({ currentUser, onLogout }) {
                       <option value="Massages">Massages</option>
                     </select>
                   </div>
+
+                  {/* Sous-categorie (depuis DB) */}
+                  {galleryCategories.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Sous-categorie (optionnel) :</label>
+                      <select value={selectedUploadCat} onChange={e => setSelectedUploadCat(e.target.value)} style={{ padding: "10px", background: "#121212", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}>
+                        <option value="">-- Aucune sous-categorie --</option>
+                        {galleryCategories.filter(c => c.parent_id).map(c => {
+                          const parent = galleryCategories.find(p => p.id === c.parent_id);
+                          return <option key={c.id} value={c.id}>{parent ? parent.name + " > " + c.name : c.name}</option>;
+                        })}
+                      </select>
+                    </div>
+                  )}
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Images (choisir un ou plusieurs fichiers) :</label>
@@ -1857,6 +1959,13 @@ export default function Admin({ currentUser, onLogout }) {
     </section>
   );
 }
+
+
+
+
+
+
+
 
 
 

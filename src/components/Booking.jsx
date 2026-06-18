@@ -59,7 +59,7 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
   useEffect(() => {
     if (preSelectedService) {
       setSelectedService(preSelectedService);
-      setStep(2);
+      setStep(3);
     }
   }, [preSelectedService]);
 
@@ -291,40 +291,42 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
               padding: "0 10px",
             }}
           >
-            {(siteSettings.allow_specialist_selection ? [1, 2, 3, 4] : [1, 2, 3]).map((s) => (
-              <div key={s} style={{ display: "flex", alignItems: "center", flex: s < 4 ? 1 : "none" }}>
-                <button
-                  onClick={() => s < step && setStep(s)}
-                  disabled={s >= step}
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "50%",
-                    border: step === s ? "2px solid var(--primary-gold)" : s < step ? "2px solid rgba(212, 175, 55, 0.6)" : "2px solid rgba(255, 255, 255, 0.1)",
-                    background: s < step ? "var(--primary-gold)" : step === s ? "rgba(212,175,55,0.1)" : "transparent",
-                    color: s < step ? "#121212" : step === s ? "var(--primary-gold)" : "var(--text-secondary)",
-                    fontWeight: "700",
-                    cursor: s < step ? "pointer" : "default",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "var(--transition-smooth)",
-                  }}
-                >
-                  {s < step ? <Check size={16} /> : s}
-                </button>
-                {s < 4 && (
-                  <div
-                    style={{
-                      height: "2px",
-                      flex: 1,
-                      background: s < step ? "var(--gold-grad)" : "rgba(255, 255, 255, 0.1)",
-                      margin: "0 12px",
-                    }}
-                  />
-                )}
-              </div>
-            ))}
+            {/* Indicateur 4 etapes: Soin > Date > Infos > Confirmation */}
+            {(() => {
+              const stepMap = [1, 3, 4, 5];
+              const stepLabels = ["Soin", "Date", "Infos", "Fin"];
+              const curV = stepMap.indexOf(step) >= 0 ? stepMap.indexOf(step) + 1 : 1;
+              return stepMap.map((actualS, idx) => {
+                const vs = idx + 1;
+                const isDone = curV > vs;
+                const isCurrent = curV === vs;
+                return (
+                  <div key={vs} style={{ display: "flex", alignItems: "center", flex: vs < 4 ? 1 : "none" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                      <button
+                        onClick={() => isDone && setStep(actualS)}
+                        disabled={!isDone}
+                        style={{
+                          width: "36px", height: "36px", borderRadius: "50%",
+                          border: isCurrent ? "2px solid var(--primary-gold)" : isDone ? "2px solid rgba(212,175,55,0.6)" : "2px solid rgba(255,255,255,0.1)",
+                          background: isDone ? "var(--primary-gold)" : isCurrent ? "rgba(212,175,55,0.1)" : "transparent",
+                          color: isDone ? "#121212" : isCurrent ? "var(--primary-gold)" : "var(--text-secondary)",
+                          fontWeight: "700", cursor: isDone ? "pointer" : "default",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "var(--transition-smooth)",
+                        }}
+                      >
+                        {isDone ? <Check size={16} /> : vs}
+                      </button>
+                      <span style={{ fontSize: "0.58rem", color: isCurrent ? "var(--primary-gold)" : "rgba(255,255,255,0.35)", textTransform: "uppercase", whiteSpace: "nowrap" }}>{stepLabels[idx]}</span>
+                    </div>
+                    {vs < 4 && (
+                      <div style={{ height: "2px", flex: 1, background: isDone ? "var(--gold-grad)" : "rgba(255,255,255,0.1)", margin: "0 8px", marginBottom: "18px" }} />
+                    )}
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
 
@@ -782,5 +784,7 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
     </section>
   );
 }
+
+
 
 

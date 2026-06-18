@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+﻿import React, { useState, useEffect } from "react"
 import { getStoredData, setStoredData } from "../data"
 import {
   supabase,
@@ -53,6 +53,7 @@ export default function Portal({ currentUser, onLoginSuccess }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
   const [appointments, setAppointments] = useState([]);
   const [affiliate, setAffiliate] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
@@ -405,6 +406,23 @@ export default function Portal({ currentUser, onLoginSuccess }) {
                   <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Téléphone :</label>
                   <input type="tel" required placeholder="077004073" value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} className="premium-input" />
                 </div>
+              </div>
+            )}
+            {isRegistering && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Code de parrainage (optionnel) :</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="text"
+                    placeholder="Ex: MARIE123"
+                    value={referralCode}
+                    onChange={e => setReferralCode(e.target.value.toUpperCase())}
+                    style={{ ...inputStyle, paddingLeft: "36px" }}
+                    className="premium-input"
+                  />
+                  <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "0.85rem" }}>🎁</span>
+                </div>
+                {referralCode && <span style={{ fontSize: "0.75rem", color: "var(--primary-gold)" }}>Code enregistre - vous et votre parrain recevrez des points bonus !</span>}
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -1207,3 +1225,4 @@ function PromosTab({ promoCodes }) {
     </div>
   );
 }
+
