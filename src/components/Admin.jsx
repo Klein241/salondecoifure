@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react"
 import { 
   LayoutDashboard, Calendar, Users, Scissors, Award, Settings, 
-  Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image, Gem,
+  Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image, Gem, FolderOpen,
   Package, ShoppingBag
 } from "lucide-react"
 import AdminFidelite from "./AdminFidelite"
