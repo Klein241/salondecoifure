@@ -214,7 +214,7 @@ export default function Gallery() {
                 )}
               </div>
               <a
-                href={`https://wa.me/${WHATSAPP_NUMBER}?text=Bonjour ! Je suis interesse(e) par la prestation "${lightbox.group.title}" que j ai vue dans votre galerie.`}
+                href={(() => { const imgUrl = lightImg.image_url || lightImg.image; const txt = encodeURIComponent(`Bonjour ! Je suis interesse(e) par la prestation "${lightbox.group.title}" vue dans votre galerie.\n\n📸 Photo : ${imgUrl}`); return `https://wa.me/${WHATSAPP_NUMBER}?text=${txt}`; })()}
                 target="_blank" rel="noopener noreferrer"
                 style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 20px", background: "#25D366", borderRadius: "8px", color: "#fff", fontWeight: "700", fontSize: "0.85rem", textDecoration: "none" }}
                 onClick={e => e.stopPropagation()}
@@ -248,3 +248,4 @@ export default function Gallery() {
     </section>
   )
 }
+

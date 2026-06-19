@@ -16,7 +16,7 @@ import {
   getStaff, addStaff, deleteStaff,
   getAffiliates, saveAffiliate, supabase,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
-  uploadImage, addGalleryImage, deleteGalleryImage, getGalleryImages, getGalleryCategories, addGalleryCategory, deleteGalleryCategory,
+  uploadImage, addGalleryImage, updateGalleryImage, deleteGalleryImage, getGalleryImages, getGalleryCategories, addGalleryCategory, deleteGalleryCategory,
   getProducts, addProduct, updateProduct, deleteProduct,
   getSiteSettings, updateSiteSettings
 } from "../supabase"
@@ -81,6 +81,13 @@ export default function Admin({ currentUser, onLogout }) {
   const [productExtraFiles, setProductExtraFiles] = useState([]);
   const [productExtraPreviews, setProductExtraPreviews] = useState([]);
   const [productUploading, setProductUploading] = useState(false);
+  const [productCats, setProductCats] = useState(["Soin","Maquillage","Parfum","Cheveux","Corps","Accessoire"]);
+  const [newProductCat, setNewProductCat] = useState("");
+  const [gallerySelectMode, setGallerySelectMode] = useState(false);
+  const [selectedGalleryIds, setSelectedGalleryIds] = useState([]);
+  const [moveToCatId, setMoveToCatId] = useState("");
+  const [editingImageId, setEditingImageId] = useState(null);
+  const [editingImageCatId, setEditingImageCatId] = useState("");
 
   // Site settings state
   const [siteSettings, setSiteSettings] = useState({ site_name: 'The Alpha Beauty', address: 'Alibadeng, Gabon', phone: '+241 077 00 40 73', whatsapp: '+241077004073', logo_url: '', favicon_url: '', allow_specialist_selection: true, promo_banner: '', promo_banner_active: true });
@@ -1433,7 +1440,7 @@ export default function Admin({ currentUser, onLogout }) {
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Categorie :</label>
                       <select value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })} style={{ padding: "10px", background: "#121212", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}>
-                        {["Soin", "Maquillage", "Parfum", "Cheveux", "Corps", "Accessoire"].map(c => <option key={c} value={c}>{c}</option>)}
+                        {productCats.map(pc => <option key={pc} value={pc}>{pc}</option>)}
                       </select>
                     </div>
                   </div>
@@ -1588,13 +1595,10 @@ export default function Admin({ currentUser, onLogout }) {
                 <h3 className="gold-text" style={{ fontSize: "1.4rem", marginBottom: "4px" }}>Galerie de l\'Institut</h3>
                 <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{galleryImages.length} image{galleryImages.length !== 1 ? "s" : ""} publiee{galleryImages.length !== 1 ? "s" : ""}</p>
               </div>
-              <button
-                onClick={() => setShowGalleryForm(true)}
-                className="btn-gold"
-                style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem" }}
-              >
-                <Plus size={16} /> Ajouter une image
-              </button>
+              <div style={{display:"flex",gap:"10px"}}>
+                <button type="button" onClick={() => { setGallerySelectMode(m => !m); setSelectedGalleryIds([]); }} style={{padding:"9px 14px",background:gallerySelectMode?"rgba(212,175,55,0.15)":"transparent",border:"1px solid rgba(212,175,55,0.45)",borderRadius:"8px",color:"var(--primary-gold)",cursor:"pointer",fontSize:"0.82rem",fontWeight:600}}>{gallerySelectMode ? "✕ Annuler" : "☑ Sélectionner"}</button>
+                <button onClick={() => setShowGalleryForm(true)} className="btn-gold" style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"0.85rem"}}><Plus size={16} /> Ajouter une image</button>
+              </div>
             </div>
 
             {/* Gestion des Categories de Galerie */}
@@ -1666,16 +1670,20 @@ export default function Admin({ currentUser, onLogout }) {
                     </select>
                   </div>
 
-                  {/* Sous-categorie (depuis DB) */}
+                  {/* Categories DB */}
                   {galleryCategories.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Sous-categorie (optionnel) :</label>
+                      <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Categorie / Sous-categorie :</label>
                       <select value={selectedUploadCat} onChange={e => setSelectedUploadCat(e.target.value)} style={{ padding: "10px", background: "#121212", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}>
-                        <option value="">-- Aucune sous-categorie --</option>
-                        {galleryCategories.filter(c => c.parent_id).map(c => {
-                          const parent = galleryCategories.find(p => p.id === c.parent_id);
-                          return <option key={c.id} value={c.id}>{parent ? parent.name + " > " + c.name : c.name}</option>;
-                        })}
+                        <option value="">-- Aucune --</option>
+                        {galleryCategories.filter(cat => !cat.parent_id).map(parent => (
+                          <React.Fragment key={parent.id}>
+                            <option value={parent.id}>{parent.name}</option>
+                            {galleryCategories.filter(sub => sub.parent_id === parent.id).map(sub => (
+                              <option key={sub.id} value={sub.id}>{"  ∟ "}{sub.name}</option>
+                            ))}
+                          </React.Fragment>
+                        ))}
                       </select>
                     </div>
                   )}
@@ -1710,9 +1718,19 @@ export default function Admin({ currentUser, onLogout }) {
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Aucune image dans la galerie. Cliquez sur "Ajouter une image" pour commencer.</p>
               </div>
             ) : (
+              <>
+              {gallerySelectMode && selectedGalleryIds.length > 0 && (
+                <div style={{background:"rgba(212,175,55,0.08)",border:"1px solid rgba(212,175,55,0.3)",borderRadius:"10px",padding:"12px 16px",marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}}>
+                  <span style={{fontSize:"0.82rem",color:"var(--primary-gold)",fontWeight:600}}>{selectedGalleryIds.length} image(s)</span>
+                  <select value={moveToCatId} onChange={e=>setMoveToCatId(e.target.value)} style={{padding:"6px 10px",background:"#121212",border:"1px solid rgba(255,255,255,0.1)",color:"var(--text-primary)",borderRadius:"6px",fontSize:"0.8rem"}}><option value="">-- Déplacer vers --</option>{galleryCategories.filter(cat=>!cat.parent_id).map(parent=>(<React.Fragment key={parent.id}><option value={parent.id}>{parent.name}</option>{galleryCategories.filter(sub=>sub.parent_id===parent.id).map(sub=>(<option key={sub.id} value={sub.id}>&nbsp;∟ {sub.name}</option>))}</React.Fragment>))}</select>
+                  <button onClick={async()=>{if(!moveToCatId)return;for(const id of selectedGalleryIds){await updateGalleryImage(id,{subcategory_id:moveToCatId});}setSelectedGalleryIds([]);setGallerySelectMode(false);setMoveToCatId("");const imgs=await getGalleryImages();setGalleryImages(imgs||[]);}} className="btn-gold" style={{padding:"6px 14px",fontSize:"0.8rem"}}>✓ Appliquer</button>
+                  <button onClick={()=>{setSelectedGalleryIds([]);setGallerySelectMode(false);}} style={{padding:"6px 12px",background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"var(--text-secondary)",borderRadius:"6px",cursor:"pointer",fontSize:"0.8rem"}}>Annuler</button>
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "20px" }}>
                 {galleryImages.map(img => (
-                  <div key={img.id} className="glass-panel" style={{ padding: 0, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px", position: "relative" }}>
+                  <div key={img.id} className="glass-panel" onClick={() => { if(gallerySelectMode) setSelectedGalleryIds(prev => prev.includes(img.id) ? prev.filter(i=>i!==img.id) : [...prev,img.id]); }} style={{padding:0,overflow:"hidden",border:gallerySelectMode&&selectedGalleryIds.includes(img.id)?"2px solid var(--primary-gold)":"1px solid rgba(255,255,255,0.06)",borderRadius:"10px",position:"relative",cursor:gallerySelectMode?"pointer":"default"}}>
+                    {gallerySelectMode&&(<div style={{position:"absolute",top:8,left:8,zIndex:10,width:22,height:22,borderRadius:4,background:selectedGalleryIds.includes(img.id)?"var(--primary-gold)":"rgba(0,0,0,0.6)",border:"2px solid var(--primary-gold)",display:"flex",alignItems:"center",justifyContent:"center"}}>{selectedGalleryIds.includes(img.id)&&<Check size={12} color="#000" />}</div>)}
                     <div style={{ height: "200px", overflow: "hidden" }}>
                       <img
                         src={img.image_url || img.image}
@@ -1725,21 +1743,17 @@ export default function Admin({ currentUser, onLogout }) {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div>
                           <p style={{ fontWeight: "600", fontSize: "0.9rem", marginBottom: "2px" }}>{img.title}</p>
-                          <span style={{ fontSize: "0.7rem", color: "var(--primary-gold)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{img.category}</span>
+                          <span style={{fontSize:"0.7rem",color:"var(--primary-gold)",textTransform:"uppercase",letterSpacing:"0.05em"}}>{img.subcategory_id?((galleryCategories.find(cat=>cat.id===img.subcategory_id)||{}).name||img.category):img.category}</span>
                           {img.description && <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "6px" }}>{img.description}</p>}
                         </div>
-                        <button
-                          onClick={() => handleDeleteGalleryImage(img.id, img.image_url || img.image)}
-                          style={{ background: "none", border: "none", color: "#FF4500", cursor: "pointer", flexShrink: 0, marginLeft: "8px" }}
-                          title="Supprimer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <button onClick={ev=>{ev.stopPropagation();setEditingImageId(editingImageId===img.id?null:img.id);setEditingImageCatId(img.subcategory_id||"");}} style={{background:"none",border:"none",color:"var(--primary-gold)",cursor:"pointer",flexShrink:0}} title="Modifier"><Edit size={14}/></button>
+                        <button onClick={ev=>{ev.stopPropagation();handleDeleteGalleryImage(img.id,img.image_url||img.image);}} style={{background:"none",border:"none",color:"#FF4500",cursor:"pointer",flexShrink:0}} title="Supprimer"><Trash2 size={16}/></button>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
+              </>
             )}
           </div>
         )}

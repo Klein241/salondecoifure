@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+﻿import React, { useState, useEffect } from "react"
 import { ShoppingBag, ShoppingCart, X, Plus, Minus, MessageCircle, Package, Trash2, Search, Eye, Star, Zap, Check, Gem } from "lucide-react"
 import { getProducts, getSiteSettings } from "../supabase"
 import { useToast } from "./Toast.jsx"
@@ -17,6 +17,7 @@ export default function Shop({ currentUser, isTab = false }) {
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productModalImgIdx, setProductModalImgIdx] = useState(0);
   const [addedFeedback, setAddedFeedback] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
   const { showToast } = useToast();
@@ -41,6 +42,9 @@ export default function Shop({ currentUser, isTab = false }) {
     }
     load();
   }, [currentUser]);
+
+  // Reset image index when product changes
+  React.useEffect(() => { setProductModalImgIdx(0); }, [selectedProduct]);
 
   const categories = ['Tous', ...new Set((products || []).map(p => p.category).filter(Boolean))];
 
@@ -100,8 +104,13 @@ export default function Shop({ currentUser, isTab = false }) {
 
   const handleDirectOrder = (product) => {
     if (product.in_stock === false) return;
-    const items = [{ ...product, qty: 1 }];
-    window.open(getWhatsAppUrl(items, product.price), '_blank');
+    const wa = (settings.whatsapp || "+241077004073").replace(/\D/g, "");
+    const imgUrl = product.image_url || (product.images && product.images[0]);
+    const imgLine = imgUrl ? `\n\n📸 Photo du produit :\n${imgUrl}` : "";
+    const msg = encodeURIComponent(
+      `Bonjour ${settings.site_name} !\n\nJe souhaite commander :\n  • ${product.name} x1 = ${Number(product.price).toLocaleString("fr-FR")} FCFA${imgLine}\n\nTotal : ${Number(product.price).toLocaleString("fr-FR")} FCFA\n\nMerci de confirmer ma commande. 🙏`
+    );
+    window.open(`https://wa.me/${wa}?text=${msg}`, "_blank");
   };
 
   const handlePayWithCredits = async (product) => {
@@ -511,16 +520,44 @@ export default function Shop({ currentUser, isTab = false }) {
               <X size={18} />
             </button>
 
-            {/* Image */}
-            <div style={{ height: '300px', background: 'rgba(212,175,55,0.04)', overflow: 'hidden', flexShrink: 0 }}>
-              {selectedProduct.image_url ? (
-                <img src={selectedProduct.image_url} alt={selectedProduct.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Package size={64} style={{ color: 'rgba(212,175,55,0.15)' }} />
+            {/* Image Gallery */}
+            {(() => {
+              const allImgs = [
+                ...(selectedProduct.image_url ? [selectedProduct.image_url] : []),
+                ...((selectedProduct.images || []).filter(u => u && u !== selectedProduct.image_url))
+              ];
+              const cur = allImgs[productModalImgIdx] || null;
+              return (
+                <div style={{ flexShrink: 0 }}>
+                  {/* Main image */}
+                  <div style={{ height: '280px', background: 'rgba(212,175,55,0.04)', overflow: 'hidden', position: 'relative' }}>
+                    {cur ? (
+                      <img src={cur} alt={selectedProduct.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Package size={64} style={{ color: 'rgba(212,175,55,0.15)' }} />
+                      </div>
+                    )}
+                    {allImgs.length > 1 && (
+                      <>
+                        <button onClick={() => setProductModalImgIdx(i => (i - 1 + allImgs.length) % allImgs.length)} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 34, height: 34, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+                        <button onClick={() => setProductModalImgIdx(i => (i + 1) % allImgs.length)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 34, height: 34, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+                        <div style={{ position: 'absolute', bottom: 8, right: 12, background: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: '2px 10px', fontSize: '0.72rem', color: '#fff' }}>{productModalImgIdx + 1}/{allImgs.length}</div>
+                      </>
+                    )}
+                  </div>
+                  {/* Thumbnails */}
+                  {allImgs.length > 1 && (
+                    <div style={{ display: 'flex', gap: 6, padding: '8px 16px', overflowX: 'auto', background: 'rgba(0,0,0,0.3)' }}>
+                      {allImgs.map((src, i) => (
+                        <img key={i} src={src} alt={'img-' + i} onClick={() => setProductModalImgIdx(i)}
+                          style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0, border: productModalImgIdx === i ? '2px solid #d4af37' : '2px solid transparent', opacity: productModalImgIdx === i ? 1 : 0.55, transition: 'all 0.2s' }} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Details */}
             <div style={{ padding: '28px', overflowY: 'auto', flex: 1 }}>
@@ -780,3 +817,4 @@ export default function Shop({ currentUser, isTab = false }) {
     </section>
   );
 }
+

@@ -659,6 +659,23 @@ export async function addGalleryImage(image) {
   return newImg
 }
 
+export async function updateGalleryImage(id, data) {
+  if (useSupabase()) {
+    try {
+      const { data: updated, error } = await supabase
+        .from('gallery_images')
+        .update(data)
+        .eq('id', id)
+        .select();
+      if (error) throw error;
+      return updated[0];
+    } catch (e) {
+      console.error('Error updating gallery image:', e);
+    }
+  }
+  return null;
+}
+
 export async function deleteGalleryImage(id, imageUrl) {
   if (imageUrl) {
     await deleteStorageFile(imageUrl, "gallery")
@@ -856,3 +873,4 @@ export async function deleteGalleryCategory(id) {
   setStoredData('gallery_categories', cats.filter(c => c.id !== id && c.parent_id !== id));
   return true;
 }
+
