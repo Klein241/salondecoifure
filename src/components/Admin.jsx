@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { 
   LayoutDashboard, Calendar, Users, Scissors, Award, Settings, 
   Check, X, Trash2, Search, Download, Plus, Edit, RefreshCw, BarChart2, Eye, User, Tag, Image, Gem, FolderOpen,
@@ -1810,6 +1810,33 @@ export default function Admin({ currentUser, onLogout }) {
                       style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}
                     />
                   </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Email :</label>
+                    <input type="email" value={siteSettings.email || ""} onChange={e => setSiteSettings({ ...siteSettings, email: e.target.value })} placeholder="contact@salon.com" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Instagram :</label>
+                    <input type="text" value={siteSettings.instagram || ""} onChange={e => setSiteSettings({ ...siteSettings, instagram: e.target.value })} placeholder="@alpha_beauty" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Facebook :</label>
+                    <input type="text" value={siteSettings.facebook || ""} onChange={e => setSiteSettings({ ...siteSettings, facebook: e.target.value })} placeholder="https://facebook.com/..." style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>TikTok :</label>
+                    <input type="text" value={siteSettings.tiktok || ""} onChange={e => setSiteSettings({ ...siteSettings, tiktok: e.target.value })} placeholder="@alpha_beauty" style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }} />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Horaires d'ouverture :</label>
+                  <textarea value={siteSettings.opening_hours || ""} onChange={e => setSiteSettings({ ...siteSettings, opening_hours: e.target.value })} rows="3" placeholder={"Lundi - Vendredi : 9h - 19h\nSamedi : 9h - 17h\nDimanche : Fermé"} style={{ padding: "10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none", resize: "vertical", fontFamily: "inherit" }} />
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

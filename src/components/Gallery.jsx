@@ -70,8 +70,7 @@ export default function Gallery() {
     if (activeSubCat) return g.subcategory_id === activeSubCat
     if (activeCat) {
       const subIds = categories.filter(c => c.parent_id === activeCat).map(c => c.id)
-      if (subIds.length > 0) return subIds.includes(g.subcategory_id)
-      return true // cat without subcats: show all
+      return subIds.includes(g.subcategory_id) || g.subcategory_id === activeCat
     }
     return true
   })

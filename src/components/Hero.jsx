@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from "react"
-import { Sparkles, Phone, MapPin, ArrowRight, Images } from "lucide-react"
-import { getGalleryImages } from "../supabase"
+import { Sparkles, Phone, MapPin, ArrowRight, Images, ShoppingBag, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { getGalleryImages, getProducts } from "../supabase"
 
 function buildGroups(items) {
   const map = {}
@@ -14,10 +14,25 @@ function buildGroups(items) {
 
 export default function Hero({ onBookNow, onGalleryClick }) {
   const [groups, setGroups] = useState([])
+  const [products, setProducts] = useState([])
+  const [heroLightbox, setHeroLightbox] = useState(null)
+  const [heroLbIdx, setHeroLbIdx] = useState(0)
 
   useEffect(() => {
     getGalleryImages().then(data => setGroups(buildGroups(data || []))).catch(() => {})
+    getProducts().then(data => setProducts((data || []).slice(0, 4))).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!heroLightbox) return
+    const handler = (e) => {
+      if (e.key === "ArrowRight") setHeroLbIdx(i => (i + 1) % heroLightbox.images.length)
+      if (e.key === "ArrowLeft") setHeroLbIdx(i => (i - 1 + heroLightbox.images.length) % heroLightbox.images.length)
+      if (e.key === "Escape") setHeroLightbox(null)
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [heroLightbox])
 
   return (
     <section
@@ -87,7 +102,7 @@ export default function Hero({ onBookNow, onGalleryClick }) {
               return (
                 <div
                   key={g.groupId}
-                  onClick={() => { const el = document.getElementById("gallery"); if (el) el.scrollIntoView({ behavior: "smooth" }); if (onGalleryClick) onGalleryClick(); }}
+                  onClick={() => { setHeroLightbox(g); setHeroLbIdx(0); }}
                   className="hero-gallery-card"
                   style={{ position: "relative", borderRadius: "10px", overflow: "hidden", height: "180px", cursor: "pointer", border: "1px solid rgba(212,175,55,0.12)" }}
                 >
@@ -105,6 +120,68 @@ export default function Hero({ onBookNow, onGalleryClick }) {
           </div>
         </div>
       )}
+
+
+      {/* Products preview */}
+      {products.length > 0 && (
+        <div style={{ maxWidth: "1200px", width: "100%", marginTop: "48px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <ShoppingBag size={18} style={{ color: "var(--primary-gold)" }} />
+              <span style={{ fontSize: "0.85rem", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--primary-gold)", fontWeight: "600" }}>Nos Produits</span>
+            </div>
+            <a href="#shop" style={{ color: "var(--primary-gold)", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", fontWeight: "600", textDecoration: "none" }}>Voir la boutique <ArrowRight size={14} /></a>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
+            {products.map(p => (
+              <a key={p.id} href="#shop" style={{ textDecoration: "none", position: "relative", borderRadius: "10px", overflow: "hidden", height: "220px", border: "1px solid rgba(212,175,55,0.12)", display: "block" }} className="hero-gallery-card">
+                <div style={{ width: "100%", height: "100%", backgroundImage: `url(${p.image_url || ''})`, backgroundSize: "cover", backgroundPosition: "center", transition: "transform 0.5s ease" }} className="hero-gallery-img" />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 50%)", display: "flex", alignItems: "flex-end", padding: "14px" }}>
+                  <div>
+                    {p.category && <span style={{ fontSize: "0.65rem", color: "var(--primary-gold)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{p.category}</span>}
+                    <p style={{ fontSize: "0.88rem", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{p.name}</p>
+                    <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--primary-gold)" }}>{Number(p.price).toLocaleString('fr-FR')} F</span>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hero Lightbox */}
+      {heroLightbox && (() => {
+        const imgs = heroLightbox.images;
+        const cur = imgs[heroLbIdx];
+        if (!cur) return null;
+        return (
+          <div onClick={() => setHeroLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+            <button onClick={() => setHeroLightbox(null)} style={{ position: "absolute", top: 16, right: 20, background: "none", border: "none", color: "rgba(255,255,255,0.7)", cursor: "pointer", zIndex: 10 }}><X size={28} /></button>
+            <div onClick={e => e.stopPropagation()} style={{ maxWidth: "800px", width: "100%", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ position: "relative" }}>
+                <img src={cur.image_url || cur.image} alt={heroLightbox.title} style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: "8px" }} />
+                {imgs.length > 1 && (
+                  <>
+                    <button onClick={() => setHeroLbIdx(i => (i - 1 + imgs.length) % imgs.length)} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: 40, height: 40, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronLeft size={20} /></button>
+                    <button onClick={() => setHeroLbIdx(i => (i + 1) % imgs.length)} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: 40, height: 40, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronRight size={20} /></button>
+                  </>
+                )}
+              </div>
+              <div>
+                <h3 style={{ fontSize: "1.1rem", color: "#fff", fontWeight: 700 }}>{heroLightbox.title}</h3>
+                {imgs.length > 1 && <span style={{ fontSize: "0.72rem", color: "var(--primary-gold)" }}>{heroLbIdx + 1} / {imgs.length}</span>}
+              </div>
+              {imgs.length > 1 && (
+                <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
+                  {imgs.map((img, i) => (
+                    <img key={i} src={img.image_url || img.image} alt={'thumb-'+i} onClick={() => setHeroLbIdx(i)} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, cursor: "pointer", border: heroLbIdx === i ? "2px solid var(--primary-gold)" : "2px solid transparent", opacity: heroLbIdx === i ? 1 : 0.5, flexShrink: 0 }} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       <style>{`
         @media (min-width: 992px) { .hero-grid { grid-template-columns: 1.2fr 0.8fr !important; } }
