@@ -1442,6 +1442,10 @@ export default function Admin({ currentUser, onLogout }) {
                       <select value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })} style={{ padding: "10px", background: "#121212", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", borderRadius: "6px", outline: "none" }}>
                         {productCats.map(pc => <option key={pc} value={pc}>{pc}</option>)}
                       </select>
+                      <div style={{ display:"flex", gap:"4px", marginTop:"4px" }}>
+                        <input value={newProductCat} onChange={e => setNewProductCat(e.target.value)} placeholder="+ Nouvelle catégorie" style={{ flex:1, padding:"7px 10px", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)", color:"var(--text-primary)", borderRadius:"6px", fontSize:"0.78rem", outline:"none" }} />
+                        <button type="button" onClick={() => { if(newProductCat.trim()) { setProductCats(prev => [...prev, newProductCat.trim()]); setProductForm(f => ({...f, category: newProductCat.trim()})); setNewProductCat(""); } }} style={{ padding:"7px 12px", background:"var(--primary-gold)", border:"none", borderRadius:"6px", color:"#000", cursor:"pointer", fontWeight:700, fontSize:"0.78rem" }}>+</button>
+                      </div>
                     </div>
                   </div>
 
