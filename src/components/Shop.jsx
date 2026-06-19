@@ -106,7 +106,7 @@ export default function Shop({ currentUser, isTab = false }) {
     if (product.in_stock === false) return;
     const wa = (settings.whatsapp || "+241077004073").replace(/\D/g, "");
     const imgUrl = product.image_url || (product.images && product.images[0]);
-    const imgLine = imgUrl ? `\n\n📸 Photo du produit :\n${imgUrl}` : "";
+    const imgLine = "";
     const msg = encodeURIComponent(
       `Bonjour ${settings.site_name} !\n\nJe souhaite commander :\n  • ${product.name} x1 = ${Number(product.price).toLocaleString("fr-FR")} FCFA${imgLine}\n\nTotal : ${Number(product.price).toLocaleString("fr-FR")} FCFA\n\nMerci de confirmer ma commande. 🙏`
     );

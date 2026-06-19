@@ -615,6 +615,7 @@ export async function getGalleryImages() {
         title: img.title,
         description: img.description || "",
         category: img.category || "Salon",
+        subcategory_id: img.subcategory_id || null,
         image_url: img.image_url,
         image: img.image_url,
         created_at: img.created_at
@@ -643,7 +644,8 @@ export async function addGalleryImage(image) {
           description: image.description || "",
           category: image.category || "Salon",
           image_url: image.image_url,
-          group_id: image.group_id || null
+          group_id: image.group_id || null,
+          subcategory_id: image.subcategory_id || null
         }])
         .select()
       if (error) throw error
