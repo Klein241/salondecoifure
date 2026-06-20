@@ -1941,7 +1941,7 @@ export default function Admin({ currentUser, onLogout }) {
                     let count = 0;
                     for (const file of files) {
                       setMessage({ text: `Upload ${count + 1}/${files.length}...`, type: "info" });
-                      const url = await uploadImage(file, "hero-banners");
+                      const url = await uploadImage(file, "gallery");
                       if (url) {
                         await addHeroBanner({ image_url: url, title: file.name.replace(/\.[^.]+$/, ''), sort_order: heroBanners.length + count });
                         count++;
