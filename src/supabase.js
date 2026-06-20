@@ -884,9 +884,10 @@ export async function getHeroBanners() {
   if (useSupabase()) {
     try {
       const { data, error } = await supabase
-        .from('hero_banners')
+        .from('gallery_images')
         .select('*')
-        .order('sort_order', { ascending: true });
+        .eq('category', 'HERO_BANNER')
+        .order('created_at', { ascending: true });
       if (error) throw error;
       return data || [];
     } catch (e) {
@@ -900,12 +901,11 @@ export async function addHeroBanner(banner) {
   if (useSupabase()) {
     try {
       const { data, error } = await supabase
-        .from('hero_banners')
+        .from('gallery_images')
         .insert([{
           image_url: banner.image_url,
           title: banner.title || "",
-          sort_order: banner.sort_order || 0,
-          active: banner.active !== false
+          category: 'HERO_BANNER'
         }])
         .select();
       if (error) throw error;
@@ -924,7 +924,7 @@ export async function addHeroBanner(banner) {
 export async function deleteHeroBanner(id, image_url) {
   if (useSupabase()) {
     try {
-      const { error } = await supabase.from('hero_banners').delete().eq('id', id);
+      const { error } = await supabase.from('gallery_images').delete().eq('id', id);
       if (error) throw error;
       // Try to delete from storage too
       if (image_url) {
@@ -946,9 +946,7 @@ export async function deleteHeroBanner(id, image_url) {
 export async function updateHeroBannerOrder(banners) {
   if (useSupabase()) {
     try {
-      for (let i = 0; i < banners.length; i++) {
-        await supabase.from('hero_banners').update({ sort_order: i }).eq('id', banners[i].id);
-      }
+      // sort_order not natively in gallery_images
       return true;
     } catch (e) {
       console.error('Error updating banner order:', e);

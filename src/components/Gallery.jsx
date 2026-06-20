@@ -7,6 +7,7 @@ const WHATSAPP_NUMBER = "241077004073"
 function buildGroups(items) {
   const map = {}
   items.forEach(item => {
+    if (item.category === 'HERO_BANNER') return;
     const key = item.group_id || item.id
     if (!map[key]) {
       map[key] = {
@@ -67,12 +68,34 @@ export default function Gallery() {
   const subCats = activeCat ? categories.filter(c => c.parent_id === activeCat) : []
 
   const displayed = allGroups.filter(g => {
-    if (activeSubCat) return g.subcategory_id === activeSubCat
-    if (activeCat) {
-      const subIds = categories.filter(c => c.parent_id === activeCat).map(c => c.id)
-      return subIds.includes(g.subcategory_id) || g.subcategory_id === activeCat
+    // Si la sous-catégorie est sélectionnée
+    if (activeSubCat) {
+      const subObj = categories.find(c => c.id === activeSubCat);
+      return g.subcategory_id === activeSubCat || (subObj && g.category === subObj.name);
     }
-    return true
+    
+    // Si uniquement la catégorie principale est sélectionnée
+    if (activeCat) {
+      // Pour une catégorie principale, on affiche:
+      // 1. Les images assignées à cette catégorie (UUID)
+      // 2. Les images assignées à ses sous-catégories (UUID)
+      // 3. Les images dont le champ texte 'category' correspond au nom de la catégorie (Anciennes données)
+      // 4. Les images dont le champ texte 'category' correspond au nom d'une de ses sous-catégories (Anciennes données)
+      
+      const subIds = categories.filter(c => c.parent_id === activeCat).map(c => c.id);
+      const subNames = categories.filter(c => c.parent_id === activeCat).map(c => c.name);
+      const catObj = categories.find(c => c.id === activeCat);
+      
+      return (
+        subIds.includes(g.subcategory_id) || 
+        g.subcategory_id === activeCat ||
+        (catObj && g.category === catObj.name) ||
+        subNames.includes(g.category)
+      );
+    }
+    
+    // Si rien n'est sélectionné (Toutes)
+    return true;
   })
 
   const openGroup = (group) => setLightbox({ group, imgIndex: 0 })
