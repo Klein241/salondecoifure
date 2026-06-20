@@ -876,3 +876,84 @@ export async function deleteGalleryCategory(id) {
   return true;
 }
 
+// ???????????????????????????????????????
+// HERO BANNERS (Carousel Accueil)
+// ???????????????????????????????????????
+
+export async function getHeroBanners() {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('hero_banners')
+        .select('*')
+        .order('sort_order', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Error fetching hero banners:', e);
+    }
+  }
+  return getStoredData('hero_banners', []);
+}
+
+export async function addHeroBanner(banner) {
+  if (useSupabase()) {
+    try {
+      const { data, error } = await supabase
+        .from('hero_banners')
+        .insert([{
+          image_url: banner.image_url,
+          title: banner.title || "",
+          sort_order: banner.sort_order || 0,
+          active: banner.active !== false
+        }])
+        .select();
+      if (error) throw error;
+      return data?.[0];
+    } catch (e) {
+      console.error('Error adding hero banner:', e);
+    }
+  }
+  const banners = getStoredData('hero_banners', []);
+  const newB = { id: 'hb_' + Date.now(), ...banner };
+  banners.push(newB);
+  setStoredData('hero_banners', banners);
+  return newB;
+}
+
+export async function deleteHeroBanner(id, image_url) {
+  if (useSupabase()) {
+    try {
+      const { error } = await supabase.from('hero_banners').delete().eq('id', id);
+      if (error) throw error;
+      // Try to delete from storage too
+      if (image_url) {
+        const path = image_url.split('/storage/v1/object/public/')[1];
+        if (path) {
+          try { await supabase.storage.from(path.split('/')[0]).remove([path.split('/').slice(1).join('/')]); } catch(e) {}
+        }
+      }
+      return true;
+    } catch (e) {
+      console.error('Error deleting hero banner:', e);
+    }
+  }
+  const banners = getStoredData('hero_banners', []);
+  setStoredData('hero_banners', banners.filter(b => b.id !== id));
+  return true;
+}
+
+export async function updateHeroBannerOrder(banners) {
+  if (useSupabase()) {
+    try {
+      for (let i = 0; i < banners.length; i++) {
+        await supabase.from('hero_banners').update({ sort_order: i }).eq('id', banners[i].id);
+      }
+      return true;
+    } catch (e) {
+      console.error('Error updating banner order:', e);
+    }
+  }
+  setStoredData('hero_banners', banners);
+  return true;
+}

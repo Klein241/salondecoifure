@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from "react"
 import { Sparkles, Phone, MapPin, ArrowRight, Images, ShoppingBag, X, ChevronLeft, ChevronRight } from "lucide-react"
-import { getGalleryImages, getProducts } from "../supabase"
+import { getGalleryImages, getProducts, getHeroBanners } from "../supabase"
 
 function buildGroups(items) {
   const map = {}
@@ -17,11 +17,24 @@ export default function Hero({ onBookNow, onGalleryClick }) {
   const [products, setProducts] = useState([])
   const [heroLightbox, setHeroLightbox] = useState(null)
   const [heroLbIdx, setHeroLbIdx] = useState(0)
+  const [banners, setBanners] = useState([])
+  const [activeBannerIdx, setActiveBannerIdx] = useState(0)
 
   useEffect(() => {
     getGalleryImages().then(data => setGroups(buildGroups(data || []))).catch(() => {})
     getProducts().then(data => setProducts((data || []).slice(0, 4))).catch(() => {})
+    getHeroBanners().then(data => setBanners(data || [])).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (banners.length <= 1) return
+    const timer = setInterval(() => {
+      setActiveBannerIdx(prev => (prev + 1) % banners.length)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [banners])
+
+  const displayBanners = banners.length > 0 ? banners : [{ id: 'default', image_url: '/gallery/salon_accueil.jpg', title: 'The Alpha Beauty' }]
 
   useEffect(() => {
     if (!heroLightbox) return
@@ -75,8 +88,60 @@ export default function Hero({ onBookNow, onGalleryClick }) {
 
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }} className="hero-image-container">
           <div style={{ position: "absolute", width: "80%", height: "80%", background: "radial-gradient(circle, rgba(212,175,55,0.15) 0%, transparent 70%)", zIndex: 0 }} />
-          <div className="glass-panel" style={{ padding: "12px", borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)", border: "1px solid rgba(212,175,55,0.25)", transform: "rotate(1deg)", transition: "transform 0.5s ease", zIndex: 1, maxWidth: "420px", width: "100%" }}>
-            <img src="/gallery/salon_accueil.jpg" alt="The Alpha Beauty" style={{ width: "100%", borderRadius: "8px", display: "block", objectFit: "cover" }} />
+          <div className="glass-panel" style={{ padding: "12px", borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)", border: "1px solid rgba(212,175,55,0.25)", zIndex: 1, maxWidth: "420px", width: "100%", overflow: "hidden" }}>
+            <div style={{ position: "relative", width: "100%", height: "450px", borderRadius: "8px", overflow: "hidden", background: "#0c0c0c" }}>
+              {displayBanners.map((b, idx) => (
+                <div
+                  key={b.id}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    opacity: activeBannerIdx === idx ? 1 : 0,
+                    transition: "opacity 0.8s ease-in-out",
+                    zIndex: activeBannerIdx === idx ? 2 : 1,
+                    pointerEvents: activeBannerIdx === idx ? "auto" : "none"
+                  }}
+                >
+                  <img
+                    src={b.image_url}
+                    alt={b.title || "The Alpha Beauty"}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                  {b.title && b.id !== 'default' && (
+                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent)", padding: "20px 16px", zIndex: 3 }}>
+                      <h3 style={{ color: "#fff", fontSize: "1rem", fontWeight: "700", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}>{b.title}</h3>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {displayBanners.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveBannerIdx(i => (i - 1 + displayBanners.length) % displayBanners.length); }}
+                    style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", zIndex: 10, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "50%", width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer" }}
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveBannerIdx(i => (i + 1) % displayBanners.length); }}
+                    style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", zIndex: 10, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "50%", width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer" }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+
+                  <div style={{ position: "absolute", bottom: "12px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "6px", zIndex: 10 }}>
+                    {displayBanners.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={(e) => { e.stopPropagation(); setActiveBannerIdx(idx); }}
+                        style={{ width: "8px", height: "8px", borderRadius: "50%", border: "none", padding: 0, background: activeBannerIdx === idx ? "var(--primary-gold)" : "rgba(255,255,255,0.3)", cursor: "pointer", transition: "background 0.3s ease" }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -18,7 +18,8 @@ import {
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   uploadImage, addGalleryImage, updateGalleryImage, deleteGalleryImage, getGalleryImages, getGalleryCategories, addGalleryCategory, deleteGalleryCategory,
   getProducts, addProduct, updateProduct, deleteProduct,
-  getSiteSettings, updateSiteSettings
+  getSiteSettings, updateSiteSettings,
+  getHeroBanners, addHeroBanner, deleteHeroBanner
 } from "../supabase"
 
 export default function Admin({ currentUser, onLogout }) {
@@ -66,7 +67,9 @@ export default function Admin({ currentUser, onLogout }) {
   const [selectedUploadCat, setSelectedUploadCat] = useState('');
   const [showGalleryForm, setShowGalleryForm] = useState(false);
   const [galleryForm, setGalleryForm] = useState({ title: "", description: "", category: "Salon" });
-  const [galleryUploadFiles, setGalleryUploadFiles] = useState([]);
+  const [heroBanners, setHeroBanners] = useState([]);
+  const [heroBannerUploading, setHeroBannerUploading] = useState(false);
+    const [galleryUploadFiles, setGalleryUploadFiles] = useState([]);
   const [galleryUploadPreviews, setGalleryUploadPreviews] = useState([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
@@ -136,6 +139,10 @@ export default function Admin({ currentUser, onLogout }) {
       if (settings) {
         setSiteSettings(settings);
       }
+
+      // Load hero banners
+      const banners = await getHeroBanners();
+      setHeroBanners(banners || []);
 
       // Load clients from profiles table in Supabase
       if (supabase) {
@@ -1913,6 +1920,75 @@ export default function Admin({ currentUser, onLogout }) {
                   {settingsSaving ? "Sauvegarde..." : "Enregistrer les Paramètres"}
                 </button>
               </form>
+            </div>
+
+            {/* Carousel Accueil */}
+            <div className="glass-panel" style={{ padding: "30px", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <h3 className="gold-text" style={{ marginBottom: "16px" }}>Carousel de l'Accueil</h3>
+              <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginBottom: "16px" }}>Uploadez les images promotionnelles qui s'afficheront en carousel sur la page d'accueil.</p>
+
+              <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px" }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  id="hero-banner-upload"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length === 0) return;
+                    setHeroBannerUploading(true);
+                    let count = 0;
+                    for (const file of files) {
+                      setMessage({ text: `Upload ${count + 1}/${files.length}...`, type: "info" });
+                      const url = await uploadImage(file, "hero-banners");
+                      if (url) {
+                        await addHeroBanner({ image_url: url, title: file.name.replace(/\.[^.]+$/, ''), sort_order: heroBanners.length + count });
+                        count++;
+                      }
+                    }
+                    if (count > 0) {
+                      setMessage({ text: count + " image(s) ajoutee(s) au carousel !", type: "success" });
+                      const updated = await getHeroBanners();
+                      setHeroBanners(updated || []);
+                    }
+                    setHeroBannerUploading(false);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  onClick={() => document.getElementById("hero-banner-upload").click()}
+                  className="btn-gold"
+                  disabled={heroBannerUploading}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", padding: "8px 14px" }}
+                >
+                  <Plus size={14} /> {heroBannerUploading ? "Upload..." : "Ajouter des images"}
+                </button>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{heroBanners.length} image(s)</span>
+              </div>
+
+              {heroBanners.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
+                  {heroBanners.map((b, idx) => (
+                    <div key={b.id} style={{ position: "relative", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(212,175,55,0.15)" }}>
+                      <img src={b.image_url} alt={b.title || 'banner'} style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }} />
+                      <div style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: "4px" }}>
+                        <button
+                          onClick={async () => {
+                            await deleteHeroBanner(b.id, b.image_url);
+                            setHeroBanners(heroBanners.filter(x => x.id !== b.id));
+                            setMessage({ text: "Image supprimee du carousel.", type: "success" });
+                          }}
+                          style={{ background: "rgba(0,0,0,0.7)", border: "none", color: "#FF4500", cursor: "pointer", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}
+                        ><Trash2 size={14} /></button>
+                      </div>
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "6px 8px", background: "rgba(0,0,0,0.7)", fontSize: "0.7rem", color: "rgba(255,255,255,0.7)" }}>
+                        {idx + 1}. {b.title || "Sans titre"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Staff Management Section */}
