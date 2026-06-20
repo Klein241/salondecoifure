@@ -76,7 +76,7 @@ export default function Hero({ onBookNow, onGalleryClick }) {
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }} className="hero-image-container">
           <div style={{ position: "absolute", width: "80%", height: "80%", background: "radial-gradient(circle, rgba(212,175,55,0.15) 0%, transparent 70%)", zIndex: 0 }} />
           <div className="glass-panel" style={{ padding: "12px", borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)", border: "1px solid rgba(212,175,55,0.25)", transform: "rotate(1deg)", transition: "transform 0.5s ease", zIndex: 1, maxWidth: "420px", width: "100%" }}>
-            <img src="/media__1779855006746.jpg" alt="The Alpha Beauty Flyer" style={{ width: "100%", borderRadius: "8px", display: "block", objectFit: "cover" }} />
+            <img src="/gallery/salon_accueil.jpg" alt="The Alpha Beauty" style={{ width: "100%", borderRadius: "8px", display: "block", objectFit: "cover" }} />
           </div>
         </div>
       </div>
@@ -130,11 +130,11 @@ export default function Hero({ onBookNow, onGalleryClick }) {
               <ShoppingBag size={18} style={{ color: "var(--primary-gold)" }} />
               <span style={{ fontSize: "0.85rem", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--primary-gold)", fontWeight: "600" }}>Nos Produits</span>
             </div>
-            <a href="#shop" style={{ color: "var(--primary-gold)", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", fontWeight: "600", textDecoration: "none" }}>Voir la boutique <ArrowRight size={14} /></a>
+            <div onClick={() => { window.history.pushState({}, "", "/boutique"); window.dispatchEvent(new PopStateEvent("popstate")); }} style={{ cursor: "pointer", color: "var(--primary-gold)", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", fontWeight: "600", textDecoration: "none" }}>Voir la boutique <ArrowRight size={14} /></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
             {products.map(p => (
-              <a key={p.id} href="#shop" style={{ textDecoration: "none", position: "relative", borderRadius: "10px", overflow: "hidden", height: "220px", border: "1px solid rgba(212,175,55,0.12)", display: "block" }} className="hero-gallery-card">
+              <div key={p.id} onClick={() => { window.history.pushState({}, "", "/boutique"); window.dispatchEvent(new PopStateEvent("popstate")); }} style={{ textDecoration: "none", position: "relative", borderRadius: "10px", overflow: "hidden", height: "220px", border: "1px solid rgba(212,175,55,0.12)", display: "block", cursor: "pointer" }} className="hero-gallery-card">
                 <div style={{ width: "100%", height: "100%", backgroundImage: `url(${p.image_url || ''})`, backgroundSize: "cover", backgroundPosition: "center", transition: "transform 0.5s ease" }} className="hero-gallery-img" />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 50%)", display: "flex", alignItems: "flex-end", padding: "14px" }}>
                   <div>
@@ -143,7 +143,7 @@ export default function Hero({ onBookNow, onGalleryClick }) {
                     <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--primary-gold)" }}>{Number(p.price).toLocaleString('fr-FR')} F</span>
                   </div>
                 </div>
-              </a>
+              </div>
             ))}
           </div>
         </div>

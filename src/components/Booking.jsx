@@ -170,7 +170,8 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
 
   const handleServiceSelect = (service) => {
     setSelectedService(service);
-    setStep(2);
+    setSelectedStaff(null);
+    setStep(3);
   };
 
   const handleStaffSelect = (stf) => {
@@ -411,7 +412,7 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
           {/* Step 3: Date & Time */}
           {step === 3 && (
             <div>
-              <h3 style={{ fontSize: "1.4rem", marginBottom: "24px", color: "var(--primary-gold)" }}>3. Sélectionnez la date et l'heure</h3>
+              <h3 style={{ fontSize: "1.4rem", marginBottom: "24px", color: "var(--primary-gold)" }}>2. Sélectionnez la date et l'heure</h3>
               
               <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                 {/* Date Input */}
@@ -499,7 +500,7 @@ export default function Booking({ preSelectedService, currentUser, onBookingSucc
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: "30px" }}>
                 <button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(1)}
                   className="btn-outline"
                   style={{ fontSize: "0.75rem", padding: "8px 16px" }}
                 >
