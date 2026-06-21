@@ -1,7 +1,7 @@
 import React from "react"
 import { Gift, Heart, UserPlus, Trophy, Sparkles } from "lucide-react"
 
-export default function Affiliate({ onGoToPortal }) {
+export default function Affiliate({ onGoToPortal, tenantId = null }) {
   const steps = [
     {
       icon: UserPlus,

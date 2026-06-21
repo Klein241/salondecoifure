@@ -1,7 +1,7 @@
 import React from "react"
 import { Phone, MapPin, Clock, Sparkles } from "lucide-react"
 
-export default function Footer() {
+export default function Footer({ siteSettings, navigateTo }) {
   return (
     <footer
       style={{

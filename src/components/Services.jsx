@@ -3,13 +3,13 @@ import { Clock, Sparkles, Scissors, Users } from "lucide-react"
 import { getServices } from "../supabase"
 import { servicesList } from "../data"
 
-export default function Services({ onSelectService }) {
+export default function Services({ onSelectService, tenantId = null }) {
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getServices().then(data => {
+    getServices(tenantId).then(data => {
       setServices(data && data.length > 0 ? data : servicesList);
       setLoading(false);
     }).catch(() => {
@@ -293,4 +293,4 @@ export default function Services({ onSelectService }) {
       <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
     </section>
   );
-}
+}
