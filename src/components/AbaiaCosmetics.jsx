@@ -175,6 +175,7 @@ function AbaiaAdmin({ onBack }) {
   const [showAdd,   setShowAdd]   = useState(null)
   const [newProd,   setNewProd]   = useState({nom:"",prix:""})
   const [busyId,    setBusyId]    = useState(null)
+  const [menuOpen,  setMenuOpen]  = useState(false)
   const fileRef = useRef(null)
   const heroRef = useRef(null)
 
@@ -230,15 +231,15 @@ function AbaiaAdmin({ onBack }) {
 
   const S = {
     page:  {minHeight:"100vh",background:`linear-gradient(160deg,${CREAM} 0%,#F0DEC8 100%)`,fontFamily:"'Poppins',system-ui,sans-serif",color:DARK},
-    header:{background:`linear-gradient(135deg,${DARK} 0%,#2C1F0E 100%)`,height:"64px",padding:"0 32px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 4px 30px rgba(0,0,0,0.25)",borderBottom:`1px solid rgba(184,134,11,0.25)`},
-    logo:  {fontFamily:"'Cormorant Garamond',serif",fontSize:"1.25rem",fontWeight:700,background:`linear-gradient(135deg,${GOLD},#E8D5A3)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"},
+    header:{background:`linear-gradient(135deg,${DARK} 0%,#2C1F0E 100%)`,minHeight:"64px",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 4px 30px rgba(0,0,0,0.25)",borderBottom:`1px solid rgba(184,134,11,0.25)`,flexWrap:"wrap"},
+    logo:  {fontFamily:"'Cormorant Garamond',serif",fontSize:"1.05rem",fontWeight:700,background:`linear-gradient(135deg,${GOLD},#E8D5A3)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"},
     navBtn:(a)=>({padding:"7px 18px",borderRadius:"20px",border:a?"none":"1px solid rgba(255,255,255,0.1)",cursor:"pointer",fontSize:"0.78rem",fontWeight:600,background:a?`linear-gradient(135deg,${GOLD},#8B6914)`:"rgba(255,255,255,0.06)",color:a?"#fff":"#bbb",transition:"all 0.2s",whiteSpace:"nowrap"}),
     card:  {background:"#fff",borderRadius:"20px",padding:"24px",boxShadow:"0 8px 40px rgba(184,134,11,0.08),0 2px 8px rgba(0,0,0,0.04)",marginBottom:"20px",border:"1px solid rgba(197,165,90,0.12)"},
     input: {width:"100%",padding:"10px 14px",borderRadius:"10px",border:"1px solid rgba(197,165,90,0.3)",fontSize:"0.85rem",outline:"none",color:DARK,background:"#fff",boxSizing:"border-box"},
     btnG:  {padding:"11px 22px",borderRadius:"10px",border:"none",background:`linear-gradient(135deg,${GOLD},#8B6914)`,color:"#fff",fontWeight:700,fontSize:"0.82rem",cursor:"pointer"},
     btnD:  {padding:"6px 10px",borderRadius:"8px",border:"none",background:"rgba(220,53,69,0.08)",color:"#dc3545",fontWeight:600,fontSize:"0.78rem",cursor:"pointer"},
-    row:   {display:"flex",alignItems:"center",padding:"10px 0",borderBottom:"1px solid rgba(197,165,90,0.08)",gap:"8px"},
-    prI:   {width:"110px",padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(197,165,90,0.25)",fontSize:"0.85rem",fontWeight:700,color:GOLD,textAlign:"right",outline:"none",background:"rgba(253,246,236,0.8)"},
+    row:   {display:"flex",alignItems:"center",padding:"10px 0",borderBottom:"1px solid rgba(197,165,90,0.08)",gap:"8px",flexWrap:"wrap"},
+    prI:   {width:"90px",padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(197,165,90,0.25)",fontSize:"0.85rem",fontWeight:700,color:GOLD,textAlign:"right",outline:"none",background:"rgba(253,246,236,0.8)"},
     lbl:   {display:"block",marginBottom:"6px",fontSize:"0.73rem",color:"#999",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600},
     imgBox:{width:"48px",height:"48px",borderRadius:"8px",background:"rgba(184,134,11,0.08)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0,cursor:"pointer",border:"1px dashed rgba(184,134,11,0.2)"},
   }
@@ -248,13 +249,31 @@ function AbaiaAdmin({ onBack }) {
   return (
     <div style={S.page}>
       <header style={S.header}>
-        <span style={S.logo}>Abaïa Cosmétique — Console Admin</span>
-        <nav style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-          {[["dashboard","Tableau de Bord"],["catalogue","Catalogue"],["boutique","Boutique"],["commandes","Commandes"],["infos","Paramètres"]].map(([id,label])=>(
-            <button key={id} style={S.navBtn(tab===id)} onClick={()=>setTab(id)}>{label}</button>
-          ))}
-          <button onClick={onBack} style={S.navBtn(false)}>← Retour au site</button>
-        </nav>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:"64px"}}>
+          <span style={S.logo}>Abaïa Admin</span>
+          {/* Desktop nav - hidden on mobile via CSS */}
+          <nav className="abaia-nav-desktop" style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+            {[["dashboard","Tableau de Bord"],["catalogue","Catalogue"],["boutique","Boutique"],["commandes","Commandes"],["infos","Paramètres"]].map(([id,label])=>(
+              <button key={id} style={{padding:"7px 16px",borderRadius:"20px",border:tab===id?"none":"1px solid rgba(255,255,255,0.1)",cursor:"pointer",fontSize:"0.76rem",fontWeight:600,background:tab===id?`linear-gradient(135deg,${GOLD},#8B6914)`:"rgba(255,255,255,0.06)",color:tab===id?"#fff":"#bbb",transition:"all 0.2s",whiteSpace:"nowrap"}} onClick={()=>setTab(id)}>{label}</button>
+            ))}
+            <button onClick={onBack} style={{padding:"7px 16px",borderRadius:"20px",border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",fontSize:"0.76rem",fontWeight:600,background:"rgba(255,255,255,0.06)",color:"#bbb",whiteSpace:"nowrap"}}>← Retour</button>
+          </nav>
+          {/* Mobile hamburger - shown on mobile via CSS */}
+          <button className="abaia-burger" onClick={()=>setMenuOpen(!menuOpen)} style={{background:"none",border:"none",cursor:"pointer",padding:"8px",display:"none",flexDirection:"column",gap:"5px"}}>
+            <span style={{width:"22px",height:"2px",background:GOLD,borderRadius:"2px",transition:"all 0.3s",transform:menuOpen?"rotate(45deg) translate(5px,5px)":"none"}}/>
+            <span style={{width:"22px",height:"2px",background:GOLD,borderRadius:"2px",transition:"all 0.3s",opacity:menuOpen?0:1}}/>
+            <span style={{width:"22px",height:"2px",background:GOLD,borderRadius:"2px",transition:"all 0.3s",transform:menuOpen?"rotate(-45deg) translate(5px,-5px)":"none"}}/>
+          </button>
+        </div>
+        {/* Mobile nav dropdown */}
+        {menuOpen && (
+          <nav className="abaia-nav-mobile" style={{width:"100%",display:"flex",flexDirection:"column",gap:"6px",padding:"8px 0 14px"}}>
+            {[["dashboard","Tableau de Bord"],["catalogue","Catalogue"],["boutique","Boutique"],["commandes","Commandes"],["infos","Paramètres"]].map(([id,label])=>(
+              <button key={id} style={{padding:"10px 16px",borderRadius:"12px",border:tab===id?"none":"1px solid rgba(255,255,255,0.1)",cursor:"pointer",fontSize:"0.82rem",fontWeight:600,background:tab===id?`linear-gradient(135deg,${GOLD},#8B6914)`:"rgba(255,255,255,0.06)",color:tab===id?"#fff":"#bbb",width:"100%",textAlign:"center"}} onClick={()=>{setTab(id);setMenuOpen(false)}}>{label}</button>
+            ))}
+            <button onClick={()=>{setMenuOpen(false);onBack()}} style={{padding:"10px 16px",borderRadius:"12px",border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",fontSize:"0.82rem",fontWeight:600,background:"rgba(255,255,255,0.06)",color:"#bbb",width:"100%",textAlign:"center"}}>← Retour au site</button>
+          </nav>
+        )}
       </header>
 
       {toast&&<div style={{position:"fixed",top:"74px",right:"20px",zIndex:9999,padding:"12px 22px",borderRadius:"12px",background:toast.type==="err"?"#dc3545":`linear-gradient(135deg,${GOLD},#8B6914)`,color:"#fff",fontWeight:600,fontSize:"0.85rem",boxShadow:"0 8px 30px rgba(0,0,0,0.2)"}}>{toast.type==="err"?"❌":"✅"} {toast.msg}</div>}
@@ -429,7 +448,13 @@ function AbaiaAdmin({ onBack }) {
           </div>
         )}
       </div>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}
+        .abaia-burger{display:none!important}
+        @media(max-width:768px){
+          .abaia-nav-desktop{display:none!important}
+          .abaia-burger{display:flex!important}
+        }
+      `}</style>
     </div>
   )
 }
@@ -486,7 +511,7 @@ function AbaiaSite() {
       {/* NAVBAR */}
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:1000,background:scrolled?"rgba(253,246,236,0.97)":"rgba(253,246,236,0.9)",backdropFilter:"blur(20px)",height:"68px",padding:"0 28px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:scrolled?"1px solid rgba(184,134,11,0.15)":"1px solid transparent",boxShadow:scrolled?"0 4px 30px rgba(184,134,11,0.08)":"none",transition:"all 0.3s"}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"1.55rem",fontWeight:700,background:`linear-gradient(135deg,${GOLD},#8B6914,#E8D5A3)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"0.02em"}}>{nm}</div>
-        <div style={{display:"flex",gap:"24px",alignItems:"center"}}>
+        <div className="abaia-site-nav" style={{display:"flex",gap:"20px",alignItems:"center"}}>
           {[["accueil","Accueil"],["catalogue","Catalogue"],["boutique","Boutique"],["apropos","À Propos"]].map(([id,label])=>(
             <span key={id} onClick={()=>go(id)} style={{fontSize:"0.82rem",fontWeight:500,cursor:"pointer",color:sect===id?GOLD:"#5A5040",borderBottom:sect===id?`2px solid ${GOLD}`:"2px solid transparent",paddingBottom:"2px",transition:"all 0.2s"}}>{label}</span>
           ))}
@@ -613,7 +638,7 @@ function AbaiaSite() {
 
       {/* ── À PROPOS ── */}
       <section id="ab-apropos" style={{padding:"80px 20px",background:`linear-gradient(135deg,rgba(232,213,163,0.1),${CREAM})`}}>
-        <div style={{maxWidth:"1100px",margin:"0 auto",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"60px",alignItems:"center"}}>
+        <div style={{maxWidth:"1100px",margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:"40px",alignItems:"center"}}>
           <div>
             <p style={{fontSize:"0.68rem",letterSpacing:"0.4em",color:GOLD,textTransform:"uppercase",fontWeight:700,marginBottom:"14px"}}>— Notre Histoire —</p>
             <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(2rem,4vw,3rem)",color:DARK,marginBottom:"20px",lineHeight:1.2}}>À Propos d'<span style={{background:`linear-gradient(135deg,${GOLD},#7B5A00)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Abaïa</span></h2>
@@ -657,7 +682,11 @@ function AbaiaSite() {
       </footer>
 
       {showPan&&<PanierDrawer panier={panier} setPanier={setPanier} onClose={()=>setShowPan(false)}/>}
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}
+        @media(max-width:768px){
+          .abaia-site-nav{display:none!important}
+        }
+      `}</style>
     </div>
   )
 }
