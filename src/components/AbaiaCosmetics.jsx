@@ -224,7 +224,13 @@ function AbaiaAdmin({ onBack }) {
   const handleHeroUpload = async(file)=>{
     if(!file) return
     const url = await uploadImage(file,`hero_${Date.now()}`)
-    if(url){ setSettings(s=>({...s,hero_image:url})); t("Bannière mise à jour !") }
+    if(url){
+      const newSettings = {...settings, hero_image:url};
+      setSettings(newSettings);
+      upsertSettings({hero_image:url});
+      localStorage.setItem("abaia_siteinfo",JSON.stringify(newSettings));
+      t("Bannière mise à jour et sauvegardée !");
+    }
     else t("Erreur upload","err")
   }
   const handleSaveSettings = async()=>{ await upsertSettings(settings); localStorage.setItem("abaia_siteinfo",JSON.stringify(settings)); t("Paramètres sauvegardés !") }
@@ -241,7 +247,7 @@ function AbaiaAdmin({ onBack }) {
     row:   {display:"flex",alignItems:"center",padding:"10px 0",borderBottom:"1px solid rgba(197,165,90,0.08)",gap:"8px",flexWrap:"wrap"},
     prI:   {width:"90px",padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(197,165,90,0.25)",fontSize:"0.85rem",fontWeight:700,color:GOLD,textAlign:"right",outline:"none",background:"rgba(253,246,236,0.8)"},
     lbl:   {display:"block",marginBottom:"6px",fontSize:"0.73rem",color:"#999",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600},
-    imgBox:{width:"48px",height:"48px",borderRadius:"8px",background:"rgba(184,134,11,0.08)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0,cursor:"pointer",border:"1px dashed rgba(184,134,11,0.2)"},
+    imgBox:{width:"48px",height:"48px",borderRadius:"8px",background:"rgba(184,134,11,0.08)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0,cursor:"pointer",border:"1px dashed rgba(184,134,11,0.2)",position:"relative"},
   }
 
   if(loading) return <div style={{...S.page,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:"2.5rem",marginBottom:"12px"}}>✨</div><p style={{color:GOLD,fontFamily:"'Cormorant Garamond',serif",fontSize:"1.1rem"}}>Chargement...</p></div></div>
