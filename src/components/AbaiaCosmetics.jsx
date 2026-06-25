@@ -49,79 +49,84 @@ const DEFAULT_CATALOGUE = [
 const CAT_ICONS={"lait-corps":"🧴","gel-douche":"🚿","creme-visage":"✨","gommage":"💎","gamme":"👑","glow-oil":"🌟"}
 const fmt = p => Number.isFinite(p) ? new Intl.NumberFormat("fr-FR").format(p)+" FCFA" : "—"
 
-// ── Supabase helpers ─────────────────────────────────────────────────────────
+// ── Supabase helpers (uses 'products' table with working RLS) ────────────────
+const CAT_NAMES={"lait-corps":"Lait Pour le Corps","gel-douche":"Gel Douches","creme-visage":"Crème Visage","gommage":"Gommage","gamme":"Gamme des Produits","glow-oil":"Les Glow Oil"}
+
 async function fetchCatalogue() {
   if (!supabase) return null
   try {
-    const { data, error } = await supabase.from("abaia_products").select("*").eq("active",true).order("categorie_id").order("ordre")
+    const abaiaCategories = Object.keys(CAT_ICONS)
+    const { data, error } = await supabase.from("products").select("*").in("category", abaiaCategories).order("category").order("created_at")
     if (error) throw error
+    if (!data || !data.length) return null
     const bycat = {}
     for (const p of data) {
-      if (!bycat[p.categorie_id]) bycat[p.categorie_id] = { categorie_id:p.categorie_id, categorie_nom:p.categorie_nom, icon:CAT_ICONS[p.categorie_id]||p.icon||"✨", produits:[] }
-      bycat[p.categorie_id].produits.push({ id:p.id, nom:p.nom, prix:p.prix, ordre:p.ordre, image_url:p.image_url||null })
+      const catId = p.category || "autre"
+      if (!bycat[catId]) bycat[catId] = { categorie_id: catId, categorie_nom: CAT_NAMES[catId] || catId, icon: CAT_ICONS[catId] || "✨", produits: [] }
+      bycat[catId].produits.push({ id: p.id, nom: p.name, prix: p.price, ordre: 99, image_url: p.image_url || null })
     }
     return Object.values(bycat)
   } catch(e) { console.warn("fetchCatalogue:", e.message); return null }
 }
 
 async function fetchSettings() {
-  if (!supabase) return {}
-  try {
-    const { data, error } = await supabase.from("abaia_settings").select("key,value")
-    if (error) throw error
-    return Object.fromEntries(data.map(r=>[r.key,r.value]))
-  } catch(e) { return {} }
+  try { return JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}") } catch(e) { return {} }
 }
 
 async function upsertProduct(id, changes) {
   if (!supabase) return false
-  const { error } = await supabase.from("abaia_products").update(changes).eq("id",id)
-  return !error
+  const mapped = {}
+  if (changes.nom !== undefined) mapped.name = changes.nom
+  if (changes.prix !== undefined) mapped.price = Number(changes.prix)
+  if (changes.image_url !== undefined) mapped.image_url = changes.image_url
+  const { data, error } = await supabase.from("products").update(mapped).eq("id", id).select()
+  if (error) { console.warn("upsertProduct error:", error.message); return false }
+  return data && data.length > 0
 }
+
 async function softDelete(id) {
   if (!supabase) return false
-  const { error } = await supabase.from("abaia_products").update({active:false}).eq("id",id)
+  const { error } = await supabase.from("products").delete().eq("id", id)
   return !error
 }
+
 async function insertProduct(row) {
-  if (!supabase) return {...row,id:"local_"+Date.now()}
-  const { data, error } = await supabase.from("abaia_products").insert(row).select().single()
-  return error ? null : data
+  if (!supabase) return {...row, id: "local_"+Date.now()}
+  const mapped = { name: row.nom, price: Number(row.prix) || 0, category: row.categorie_id, description: (row.categorie_nom || "") + " " + (row.icon || ""), image_url: null, images: [], in_stock: true }
+  const { data, error } = await supabase.from("products").insert(mapped).select().single()
+  if (error) { console.warn("insertProduct error:", error.message); return null }
+  return { id: data.id, nom: data.name, prix: data.price, ordre: 99, image_url: data.image_url }
 }
+
 async function upsertSettings(obj) {
-  if (!supabase) return false
-  const rows = Object.entries(obj).map(([key,value])=>({key,value}))
-  const { error } = await supabase.from("abaia_settings").upsert(rows)
-  return !error
+  try {
+    const current = JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}")
+    localStorage.setItem("abaia_siteinfo", JSON.stringify({...current, ...obj}))
+    return true
+  } catch(e) { return false }
 }
 
-
-// ── Seed: insert DEFAULT_CATALOGUE into Supabase if table is empty ──────────
 async function seedCatalogue() {
   if (!supabase) return false
   try {
-    const { count, error: cErr } = await supabase.from("abaia_products").select("id", { count: "exact", head: true }).eq("active", true)
+    const abaiaCategories = Object.keys(CAT_ICONS)
+    const { data, error: cErr } = await supabase.from("products").select("id").in("category", abaiaCategories).limit(1)
     if (cErr) throw cErr
-    if (count > 0) return false
+    if (data && data.length > 0) return false
     const rows = DEFAULT_CATALOGUE.flatMap(cat =>
       cat.produits.map(p => ({
-        // No id: let database auto-generate it (UUID or serial)
-        categorie_id: cat.categorie_id,
-        categorie_nom: cat.categorie_nom,
-        icon: cat.icon,
-        nom: p.nom,
-        prix: p.prix,
-        ordre: p.ordre,
-        active: true,
-        image_url: null
+        name: p.nom, price: p.prix, category: cat.categorie_id,
+        description: cat.categorie_nom + " " + cat.icon,
+        image_url: null, images: [], in_stock: true
       }))
     )
-    const { error } = await supabase.from("abaia_products").insert(rows)
+    const { error } = await supabase.from("products").insert(rows)
     if (error) throw error
-    console.log("Catalogue seeded with", rows.length, "products")
+    console.log("Abaia catalogue seeded with", rows.length, "products")
     return true
   } catch(e) { console.warn("seedCatalogue:", e.message); return false }
 }
+
 // ── Upload image to Supabase Storage ─────────────────────────────────────────
 async function uploadImage(file, path) {
   if (!supabase) return null
