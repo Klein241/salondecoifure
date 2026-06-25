@@ -63,13 +63,25 @@ async function fetchCatalogue() {
     for (const p of data) {
       const catId = p.category || "autre"
       if (!bycat[catId]) bycat[catId] = { categorie_id: catId, categorie_nom: CAT_NAMES[catId] || catId, icon: CAT_ICONS[catId] || "✨", produits: [] }
-      bycat[catId].produits.push({ id: p.id, nom: p.name, prix: p.price, ordre: 99, image_url: p.image_url || null })
+      bycat[catId].produits.push({ id: p.id, nom: p.name, prix: p.price, ordre: 99, image_url: p.image_url || null, description: p.description || "", images: p.images || [] })
     }
     return Object.values(bycat)
   } catch(e) { console.warn("fetchCatalogue:", e.message); return null }
 }
 
 async function fetchSettings() {
+  if (!supabase) { try { return JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}") } catch(e) { return {} } }
+  try {
+    const { data } = supabase.storage.from("abaia").getPublicUrl("settings.json")
+    if (data && data.publicUrl) {
+      const res = await fetch(data.publicUrl + "?t=" + Date.now())
+      if (res.ok) {
+        const settings = await res.json()
+        localStorage.setItem("abaia_siteinfo", JSON.stringify(settings))
+        return settings
+      }
+    }
+  } catch(e) { console.warn("fetchSettings storage:", e.message) }
   try { return JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}") } catch(e) { return {} }
 }
 
@@ -79,6 +91,8 @@ async function upsertProduct(id, changes) {
   if (changes.nom !== undefined) mapped.name = changes.nom
   if (changes.prix !== undefined) mapped.price = Number(changes.prix)
   if (changes.image_url !== undefined) mapped.image_url = changes.image_url
+  if (changes.description !== undefined) mapped.description = changes.description
+  if (changes.images !== undefined) mapped.images = changes.images
   const { data, error } = await supabase.from("products").update(mapped).eq("id", id).select()
   if (error) { console.warn("upsertProduct error:", error.message); return false }
   return data && data.length > 0
@@ -95,15 +109,20 @@ async function insertProduct(row) {
   const mapped = { name: row.nom, price: Number(row.prix) || 0, category: row.categorie_id, description: (row.categorie_nom || "") + " " + (row.icon || ""), image_url: null, images: [], in_stock: true }
   const { data, error } = await supabase.from("products").insert(mapped).select().single()
   if (error) { console.warn("insertProduct error:", error.message); return null }
-  return { id: data.id, nom: data.name, prix: data.price, ordre: 99, image_url: data.image_url }
+  return { id: data.id, nom: data.name, prix: data.price, ordre: 99, image_url: data.image_url, description: data.description || "", images: data.images || [] }
 }
 
 async function upsertSettings(obj) {
   try {
     const current = JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}")
-    localStorage.setItem("abaia_siteinfo", JSON.stringify({...current, ...obj}))
+    const updated = {...current, ...obj}
+    localStorage.setItem("abaia_siteinfo", JSON.stringify(updated))
+    if (supabase) {
+      const blob = new Blob([JSON.stringify(updated)], { type: "application/json" })
+      await supabase.storage.from("abaia").upload("settings.json", blob, { upsert: true, contentType: "application/json" })
+    }
     return true
-  } catch(e) { return false }
+  } catch(e) { console.warn("upsertSettings:", e.message); return false }
 }
 
 async function seedCatalogue() {
@@ -138,6 +157,43 @@ async function uploadImage(file, path) {
   } catch(e) { console.error("Upload error:", e.message); return null }
 }
 
+// ── PRODUCT DETAIL MODAL ─────────────────────────────────────────────────────
+function ProductModal({ product, onClose, onAddToCart }) {
+  const [currentImg, setCurrentImg] = useState(0)
+  if (!product) return null
+  const allImages = [product.image_url, ...(product.images || [])].filter(Boolean)
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:"24px",maxWidth:"700px",width:"100%",maxHeight:"90vh",overflow:"auto",boxShadow:"0 30px 80px rgba(0,0,0,0.4)"}}>
+        {/* Images */}
+        <div style={{position:"relative",background:"rgba(184,134,11,0.04)",minHeight:"300px",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"24px 24px 0 0",overflow:"hidden"}}>
+          {allImages.length > 0
+            ? <img src={allImages[currentImg]} alt={product.nom} style={{width:"100%",height:"380px",objectFit:"cover"}}/>
+            : <div style={{textAlign:"center",padding:"60px",color:"#ccc"}}><div style={{fontSize:"4rem",marginBottom:"12px"}}>📷</div><p>Aucune photo</p></div>}
+          {allImages.length > 1 && <>
+            <button onClick={()=>setCurrentImg(i=>(i-1+allImages.length)%allImages.length)} style={{position:"absolute",left:"12px",top:"50%",transform:"translateY(-50%)",background:"rgba(0,0,0,0.5)",color:"#fff",border:"none",borderRadius:"50%",width:"36px",height:"36px",fontSize:"1.1rem",cursor:"pointer"}}>◀</button>
+            <button onClick={()=>setCurrentImg(i=>(i+1)%allImages.length)} style={{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",background:"rgba(0,0,0,0.5)",color:"#fff",border:"none",borderRadius:"50%",width:"36px",height:"36px",fontSize:"1.1rem",cursor:"pointer"}}>▶</button>
+          </>}
+          <button onClick={onClose} style={{position:"absolute",top:"12px",right:"12px",background:"rgba(0,0,0,0.5)",color:"#fff",border:"none",borderRadius:"50%",width:"32px",height:"32px",fontSize:"1rem",cursor:"pointer"}}>✕</button>
+        </div>
+        {/* Thumbnails */}
+        {allImages.length > 1 && <div style={{display:"flex",gap:"6px",padding:"10px 20px",overflowX:"auto"}}>
+          {allImages.map((img,i)=><img key={i} src={img} onClick={()=>setCurrentImg(i)} style={{width:"56px",height:"56px",objectFit:"cover",borderRadius:"8px",cursor:"pointer",border:currentImg===i?"2px solid #B8860B":"2px solid transparent",opacity:currentImg===i?1:0.6}}/>)}
+        </div>}
+        {/* Info */}
+        <div style={{padding:"24px"}}>
+          <p style={{fontSize:"0.65rem",color:"#B8860B",letterSpacing:"0.12em",textTransform:"uppercase",fontWeight:700,marginBottom:"6px"}}>{product.catNom}</p>
+          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"1.8rem",color:"#1C1C1C",marginBottom:"10px"}}>{product.nom}</h2>
+          {product.description && <p style={{color:"#666",fontSize:"0.9rem",lineHeight:1.8,marginBottom:"18px"}}>{product.description}</p>}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:"14px",borderTop:"1px solid rgba(184,134,11,0.1)"}}>
+            <span style={{fontWeight:800,color:"#B8860B",fontSize:"1.4rem"}}>{Number.isFinite(product.prix)?new Intl.NumberFormat("fr-FR").format(product.prix)+" FCFA":"—"}</span>
+            <button onClick={()=>{onAddToCart(product);onClose()}} style={{padding:"12px 28px",borderRadius:"10px",background:"linear-gradient(135deg,#B8860B,#8B6914)",border:"none",color:"#fff",fontWeight:700,fontSize:"0.88rem",cursor:"pointer"}}>+ Ajouter au panier</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 // ── PANIER ───────────────────────────────────────────────────────────────────
 function PanierDrawer({ panier, setPanier, onClose }) {
   const total = panier.reduce((s,i)=>s+i.prix*i.qty,0)
@@ -205,7 +261,7 @@ function AbaiaAdmin({ onBack }) {
   const [tab,       setTab]       = useState("dashboard")
   const [toast,     setToast]     = useState(null)
   const [showAdd,   setShowAdd]   = useState(null)
-  const [newProd,   setNewProd]   = useState({nom:"",prix:""})
+  const [newProd,   setNewProd]   = useState({nom:"",prix:"",description:""})
   const [busyId,    setBusyId]    = useState(null)
   const [menuOpen,  setMenuOpen]  = useState(false)
   const fileRef = useRef(null)
@@ -236,11 +292,11 @@ function AbaiaAdmin({ onBack }) {
   const handleAdd  = async(catId)  =>{
     if(!newProd.nom||!newProd.prix){t("Nom et prix requis","err");return}
     const catInfo=catalogue.find(c=>c.categorie_id===catId)
-    const row={categorie_id:catId,categorie_nom:catInfo?.categorie_nom||catId,icon:catInfo?.icon||"✨",nom:newProd.nom,prix:parseInt(newProd.prix)||0,ordre:99}
+    const row={categorie_id:catId,categorie_nom:catInfo?.categorie_nom||catId,icon:catInfo?.icon||"✨",nom:newProd.nom,prix:parseInt(newProd.prix)||0,ordre:99,description:newProd.description||""}
     const added=await insertProduct(row)
     if(!added){t("Erreur","err");return}
-    setCatalogue(c=>c.map(cat=>cat.categorie_id===catId?{...cat,produits:[...cat.produits,{id:added.id,nom:added.nom,prix:added.prix,ordre:added.ordre,image_url:null}]}:cat))
-    setNewProd({nom:"",prix:""}); setShowAdd(null); t("Produit ajouté !")
+    setCatalogue(c=>c.map(cat=>cat.categorie_id===catId?{...cat,produits:[...cat.produits,{id:added.id,nom:added.nom,prix:added.prix,ordre:added.ordre,image_url:null,description:added.description||"",images:added.images||[]}]}:cat))
+    setNewProd({nom:"",prix:"",description:""}); setShowAdd(null); t("Produit ajouté !")
   }
   const handleImageUpload = async(id,file)=>{
     if(!file) return
@@ -510,6 +566,7 @@ function AbaiaSite() {
   const [search,    setSearch]    = useState("")
   const [catFlt,    setCatFlt]    = useState("all")
   const [heroLoaded,setHeroLoaded]= useState(false)
+  const [selectedProd,setSelectedProd]= useState(null)
 
   useEffect(()=>{
     let link=document.querySelector("link[rel~='icon']")
@@ -539,7 +596,7 @@ function AbaiaSite() {
   const wa=msg=>window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Bonjour Abaïa Cosmétique\n"+msg+"\n\nMerci 🙏")}`,"_blank")
   const go=id=>{setSect(id);document.getElementById("ab-"+id)?.scrollIntoView({behavior:"smooth"})}
 
-  const allProds=catalogue.flatMap(cat=>cat.produits.map(p=>({...p,catId:cat.categorie_id,catNom:cat.categorie_nom,icon:cat.icon})))
+  const allProds=catalogue.flatMap(cat=>cat.produits.map(p=>({...p,catId:cat.categorie_id,catNom:cat.categorie_nom,icon:cat.icon,description:p.description||"",images:p.images||[]})))
   const filtered=allProds.filter(p=>(!search||p.nom.toLowerCase().includes(search.toLowerCase()))&&(catFlt==="all"||p.catId===catFlt))
   const nm=settings.nom||"Abaïa Cosmétique"
   const sl=settings.slogan||"Élevez Votre Éclat Naturel"
@@ -722,6 +779,7 @@ function AbaiaSite() {
         </div>
       </footer>
 
+      {selectedProd&&<ProductModal product={selectedProd} onClose={()=>setSelectedProd(null)} onAddToCart={(p)=>addToCart(p,p.catNom,p.icon)}/>}
       {showPan&&<PanierDrawer panier={panier} setPanier={setPanier} onClose={()=>setShowPan(false)}/>}
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}
         @media(max-width:768px){
