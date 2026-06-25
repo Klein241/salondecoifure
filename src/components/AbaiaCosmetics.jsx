@@ -105,7 +105,7 @@ async function seedCatalogue() {
     if (count > 0) return false
     const rows = DEFAULT_CATALOGUE.flatMap(cat =>
       cat.produits.map(p => ({
-        id: p.id,
+        // No id: let database auto-generate it (UUID or serial)
         categorie_id: cat.categorie_id,
         categorie_nom: cat.categorie_nom,
         icon: cat.icon,
@@ -116,7 +116,7 @@ async function seedCatalogue() {
         image_url: null
       }))
     )
-    const { error } = await supabase.from("abaia_products").upsert(rows, { onConflict: "id" })
+    const { error } = await supabase.from("abaia_products").insert(rows)
     if (error) throw error
     console.log("Catalogue seeded with", rows.length, "products")
     return true
