@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+﻿import { useState, useEffect, useRef } from "react"
 import { supabase } from "../supabase"
 
 const WHATSAPP = "237698548016"
@@ -95,6 +95,33 @@ async function upsertSettings(obj) {
   return !error
 }
 
+
+// ── Seed: insert DEFAULT_CATALOGUE into Supabase if table is empty ──────────
+async function seedCatalogue() {
+  if (!supabase) return false
+  try {
+    const { count, error: cErr } = await supabase.from("abaia_products").select("id", { count: "exact", head: true }).eq("active", true)
+    if (cErr) throw cErr
+    if (count > 0) return false
+    const rows = DEFAULT_CATALOGUE.flatMap(cat =>
+      cat.produits.map(p => ({
+        id: p.id,
+        categorie_id: cat.categorie_id,
+        categorie_nom: cat.categorie_nom,
+        icon: cat.icon,
+        nom: p.nom,
+        prix: p.prix,
+        ordre: p.ordre,
+        active: true,
+        image_url: null
+      }))
+    )
+    const { error } = await supabase.from("abaia_products").upsert(rows, { onConflict: "id" })
+    if (error) throw error
+    console.log("Catalogue seeded with", rows.length, "products")
+    return true
+  } catch(e) { console.warn("seedCatalogue:", e.message); return false }
+}
 // ── Upload image to Supabase Storage ─────────────────────────────────────────
 async function uploadImage(file, path) {
   if (!supabase) return null
@@ -184,6 +211,8 @@ function AbaiaAdmin({ onBack }) {
   useEffect(()=>{
     (async()=>{
       setLoading(true)
+      // Seed default products into Supabase if table is empty
+      await seedCatalogue()
       const [cat,sets] = await Promise.all([fetchCatalogue(),fetchSettings()])
       setCatalogue(cat||DEFAULT_CATALOGUE)
       const lss=(()=>{try{return JSON.parse(localStorage.getItem("abaia_siteinfo")||"{}")}catch(e){return{}}})()
@@ -483,6 +512,7 @@ function AbaiaSite() {
     link.href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%23FDF6EC"/><text y=".9em" font-size="75" x="12">✨</text></svg>'
     document.title="Abaïa Cosmétique — Élevez Votre Éclat Naturel"
     ;(async()=>{
+      await seedCatalogue()
       const[cat,sets]=await Promise.all([fetchCatalogue(),fetchSettings()])
       if(cat&&cat.length)setCatalogue(cat)
       const lss=(()=>{try{return JSON.parse(localStorage.getItem("abaia_siteinfo")||"{}")}catch(e){return{}}})()
