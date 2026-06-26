@@ -70,18 +70,6 @@ async function fetchCatalogue() {
 }
 
 async function fetchSettings() {
-  if (!supabase) { try { return JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}") } catch(e) { return {} } }
-  try {
-    const { data } = supabase.storage.from("abaia").getPublicUrl("settings.json")
-    if (data && data.publicUrl) {
-      const res = await fetch(data.publicUrl + "?t=" + Date.now())
-      if (res.ok) {
-        const settings = await res.json()
-        localStorage.setItem("abaia_siteinfo", JSON.stringify(settings))
-        return settings
-      }
-    }
-  } catch(e) { console.warn("fetchSettings storage:", e.message) }
   try { return JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}") } catch(e) { return {} }
 }
 
@@ -91,8 +79,6 @@ async function upsertProduct(id, changes) {
   if (changes.nom !== undefined) mapped.name = changes.nom
   if (changes.prix !== undefined) mapped.price = Number(changes.prix)
   if (changes.image_url !== undefined) mapped.image_url = changes.image_url
-  if (changes.description !== undefined) mapped.description = changes.description
-  if (changes.images !== undefined) mapped.images = changes.images
   const { data, error } = await supabase.from("products").update(mapped).eq("id", id).select()
   if (error) { console.warn("upsertProduct error:", error.message); return false }
   return data && data.length > 0
@@ -115,14 +101,9 @@ async function insertProduct(row) {
 async function upsertSettings(obj) {
   try {
     const current = JSON.parse(localStorage.getItem("abaia_siteinfo") || "{}")
-    const updated = {...current, ...obj}
-    localStorage.setItem("abaia_siteinfo", JSON.stringify(updated))
-    if (supabase) {
-      const blob = new Blob([JSON.stringify(updated)], { type: "application/json" })
-      await supabase.storage.from("abaia").upload("settings.json", blob, { upsert: true, contentType: "application/json" })
-    }
+    localStorage.setItem("abaia_siteinfo", JSON.stringify({...current, ...obj}))
     return true
-  } catch(e) { console.warn("upsertSettings:", e.message); return false }
+  } catch(e) { return false }
 }
 
 async function seedCatalogue() {
@@ -165,7 +146,6 @@ function ProductModal({ product, onClose, onAddToCart }) {
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:"24px",maxWidth:"700px",width:"100%",maxHeight:"90vh",overflow:"auto",boxShadow:"0 30px 80px rgba(0,0,0,0.4)"}}>
-        {/* Images */}
         <div style={{position:"relative",background:"rgba(184,134,11,0.04)",minHeight:"300px",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"24px 24px 0 0",overflow:"hidden"}}>
           {allImages.length > 0
             ? <img src={allImages[currentImg]} alt={product.nom} style={{width:"100%",height:"380px",objectFit:"cover"}}/>
@@ -176,11 +156,9 @@ function ProductModal({ product, onClose, onAddToCart }) {
           </>}
           <button onClick={onClose} style={{position:"absolute",top:"12px",right:"12px",background:"rgba(0,0,0,0.5)",color:"#fff",border:"none",borderRadius:"50%",width:"32px",height:"32px",fontSize:"1rem",cursor:"pointer"}}>✕</button>
         </div>
-        {/* Thumbnails */}
         {allImages.length > 1 && <div style={{display:"flex",gap:"6px",padding:"10px 20px",overflowX:"auto"}}>
           {allImages.map((img,i)=><img key={i} src={img} onClick={()=>setCurrentImg(i)} style={{width:"56px",height:"56px",objectFit:"cover",borderRadius:"8px",cursor:"pointer",border:currentImg===i?"2px solid #B8860B":"2px solid transparent",opacity:currentImg===i?1:0.6}}/>)}
         </div>}
-        {/* Info */}
         <div style={{padding:"24px"}}>
           <p style={{fontSize:"0.65rem",color:"#B8860B",letterSpacing:"0.12em",textTransform:"uppercase",fontWeight:700,marginBottom:"6px"}}>{product.catNom}</p>
           <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"1.8rem",color:"#1C1C1C",marginBottom:"10px"}}>{product.nom}</h2>
@@ -194,6 +172,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
     </div>
   )
 }
+
 // ── PANIER ───────────────────────────────────────────────────────────────────
 function PanierDrawer({ panier, setPanier, onClose }) {
   const total = panier.reduce((s,i)=>s+i.prix*i.qty,0)
@@ -298,18 +277,42 @@ function AbaiaAdmin({ onBack }) {
     setCatalogue(c=>c.map(cat=>cat.categorie_id===catId?{...cat,produits:[...cat.produits,{id:added.id,nom:added.nom,prix:added.prix,ordre:added.ordre,image_url:null,description:added.description||"",images:added.images||[]}]}:cat))
     setNewProd({nom:"",prix:"",description:""}); setShowAdd(null); t("Produit ajouté !")
   }
-  const handleImageUpload = async(id,file)=>{
+  const handleImageUpload = async(id,file,isSecondary=false)=>{
     if(!file) return
     setBusyId(id)
-    const url = await uploadImage(file,`products/${id}_${Date.now()}`)
+    const url = await uploadImage(file,"products/"+id+"_"+Date.now())
     if(url){
-      await upsertProduct(id,{image_url:url})
-      setCatalogue(c=>c.map(cat=>({...cat,produits:cat.produits.map(p=>p.id===id?{...p,image_url:url}:p)})))
-      t("Photo mise à jour !")
+      if(isSecondary){
+        const fc=catalogue.find(c=>c.produits.some(p=>p.id===id))
+        const pr=fc&&fc.produits.find(p=>p.id===id)
+        const cur=(pr&&pr.images)||[]
+        if(cur.length>=4){t("Maximum 4 photos","err");setBusyId(null);return}
+        const ni=[...cur,url]
+        await upsertProduct(id,{images:ni})
+        setCatalogue(c=>c.map(cat=>({...cat,produits:cat.produits.map(p=>p.id===id?{...p,images:ni}:p)})))
+        t("Photo ajoutée !")
+      } else {
+        await upsertProduct(id,{image_url:url})
+        setCatalogue(c=>c.map(cat=>({...cat,produits:cat.produits.map(p=>p.id===id?{...p,image_url:url}:p)})))
+        t("Photo principale mise à jour !")
+      }
     } else {
-      t("Erreur upload (vérifier bucket 'abaia' dans Supabase Storage)","err")
+      t("Erreur upload","err")
     }
     setBusyId(null)
+  }
+  const handleRemoveSecondaryImage=async(id,imgUrl)=>{
+    if(!window.confirm("Supprimer cette photo ?"))return
+    const fc=catalogue.find(c=>c.produits.some(p=>p.id===id))
+    const pr=fc&&fc.produits.find(p=>p.id===id)
+    const ni=((pr&&pr.images)||[]).filter(u=>u!==imgUrl)
+    await upsertProduct(id,{images:ni})
+    setCatalogue(c=>c.map(cat=>({...cat,produits:cat.produits.map(p=>p.id===id?{...p,images:ni}:p)})))
+    t("Photo supprimée")
+  }
+  const handleDesc=async(id,desc)=>{
+    const ok=await upsertProduct(id,{description:desc})
+    if(ok){setCatalogue(c=>c.map(cat=>({...cat,produits:cat.produits.map(p=>p.id===id?{...p,description:desc}:p)})));t("Description mise à jour")}
   }
   const handleHeroUpload = async(file)=>{
     if(!file) return
@@ -432,21 +435,39 @@ function AbaiaAdmin({ onBack }) {
                   </div>
                 </div>
                 {cat.produits.map(p=>(
-                  <div key={p.id} style={S.row}>
-                    {/* Photo thumbnail — click to upload */}
-                    <label style={S.imgBox} title="Cliquer pour changer la photo">
-                      {p.image_url
-                        ? <img src={p.image_url} alt={p.nom} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                        : <span style={{fontSize:"1.3rem"}}>{cat.icon}</span>}
-                      <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleImageUpload(p.id,e.target.files[0])}}/>
-                      {busyId===p.id&&<div style={{position:"absolute",inset:0,background:"rgba(255,255,255,0.7)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"8px"}}><span style={{fontSize:"0.7rem",color:GOLD}}>⏳</span></div>}
-                    </label>
-                    <input defaultValue={p.nom} onBlur={e=>{if(e.target.value!==p.nom)handleNom(p.id,e.target.value)}} style={{flex:1,padding:"7px 10px",border:"1px solid transparent",borderRadius:"8px",fontSize:"0.85rem",color:DARK,background:"transparent",outline:"none",transition:"border 0.2s"}} onFocus={e=>{e.target.style.border="1px solid rgba(197,165,90,0.4)";e.target.style.background="#fff"}} onBlurCapture={e=>{e.target.style.border="1px solid transparent";e.target.style.background="transparent"}}/>
-                    <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
-                      <input type="number" defaultValue={p.prix} onBlur={e=>{if(parseInt(e.target.value)!==p.prix)handlePrix(p.id,e.target.value)}} style={S.prI}/>
-                      <span style={{fontSize:"0.7rem",color:"#bbb",whiteSpace:"nowrap"}}>FCFA</span>
+                  <div key={p.id} style={{...S.row,flexDirection:"column",alignItems:"stretch"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                      <label style={S.imgBox} title="Photo principale">
+                        {p.image_url
+                          ? <img src={p.image_url} alt={p.nom} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                          : <span style={{fontSize:"1.3rem"}}>{cat.icon}</span>}
+                        <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleImageUpload(p.id,e.target.files[0])}}/>
+                        {busyId===p.id&&<div style={{position:"absolute",inset:0,background:"rgba(255,255,255,0.7)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"8px"}}><span style={{fontSize:"0.7rem",color:GOLD}}>⏳</span></div>}
+                      </label>
+                      <input defaultValue={p.nom} onBlur={e=>{if(e.target.value!==p.nom)handleNom(p.id,e.target.value)}} style={{flex:1,padding:"7px 10px",border:"1px solid transparent",borderRadius:"8px",fontSize:"0.85rem",color:DARK,background:"transparent",outline:"none",transition:"border 0.2s"}} onFocus={e=>{e.target.style.border="1px solid rgba(197,165,90,0.4)";e.target.style.background="#fff"}} onBlurCapture={e=>{e.target.style.border="1px solid transparent";e.target.style.background="transparent"}}/>
+                      <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                        <input type="number" defaultValue={p.prix} onBlur={e=>{if(parseInt(e.target.value)!==p.prix)handlePrix(p.id,e.target.value)}} style={S.prI}/>
+                        <span style={{fontSize:"0.7rem",color:"#bbb",whiteSpace:"nowrap"}}>FCFA</span>
+                      </div>
+                      <button onClick={()=>handleDel(p.id)} style={S.btnD}>🗑</button>
                     </div>
-                    <button onClick={()=>handleDel(p.id)} style={S.btnD}>🗑</button>
+                    <div style={{paddingLeft:"52px",marginTop:"6px",display:"flex",flexDirection:"column",gap:"6px"}}>
+                      <textarea key={p.id+"_d"} defaultValue={p.description||""} onBlur={e=>{if(e.target.value!==(p.description||""))handleDesc(p.id,e.target.value)}} placeholder="Description du produit..." style={{width:"100%",padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(197,165,90,0.2)",fontSize:"0.78rem",fontFamily:"inherit",resize:"vertical",minHeight:"54px",background:"#fafafa",color:DARK}}/>
+                      <div style={{display:"flex",gap:"6px",flexWrap:"wrap",alignItems:"center"}}>
+                        <span style={{fontSize:"0.68rem",color:"#bbb"}}>Photos suppl. :</span>
+                        {(p.images||[]).map((imgUrl,ii)=>(
+                          <div key={ii} style={{position:"relative",width:"44px",height:"44px",borderRadius:"6px",overflow:"hidden",border:"1px solid #eee"}}>
+                            <img src={imgUrl} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                            <button onClick={()=>handleRemoveSecondaryImage(p.id,imgUrl)} style={{position:"absolute",top:1,right:1,background:"rgba(220,0,0,0.75)",color:"#fff",border:"none",borderRadius:"50%",width:"14px",height:"14px",fontSize:"9px",cursor:"pointer",lineHeight:1}}>✕</button>
+                          </div>
+                        ))}
+                        {(p.images||[]).length<4&&(
+                          <label style={{width:"44px",height:"44px",borderRadius:"6px",border:"1px dashed rgba(184,134,11,0.4)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:GOLD,fontSize:"1.3rem",background:"rgba(184,134,11,0.04)"}} title="Ajouter une photo">
+                            +<input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleImageUpload(p.id,e.target.files[0],true)}}/>
+                          </label>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))}
                 {showAdd===cat.categorie_id?(
@@ -459,7 +480,7 @@ function AbaiaAdmin({ onBack }) {
                     </div>
                   </div>
                 ):(
-                  <button onClick={()=>{setShowAdd(cat.categorie_id);setNewProd({nom:"",prix:""})}} style={{marginTop:"12px",width:"100%",background:"none",border:"1px dashed rgba(184,134,11,0.2)",color:GOLD,borderRadius:"10px",padding:"9px 16px",cursor:"pointer",fontSize:"0.78rem"}}>+ Ajouter un produit</button>
+                  <button onClick={()=>{setShowAdd(cat.categorie_id);setNewProd({nom:"",prix:"",description:""})}} style={{marginTop:"12px",width:"100%",background:"none",border:"1px dashed rgba(184,134,11,0.2)",color:GOLD,borderRadius:"10px",padding:"9px 16px",cursor:"pointer",fontSize:"0.78rem"}}>+ Ajouter un produit</button>
                 )}
               </div>
             ))}
@@ -527,9 +548,27 @@ function AbaiaAdmin({ onBack }) {
                 {[["nom","Nom de la marque","Abaïa Cosmétique"],["slogan","Slogan","Élevez Votre Éclat Naturel"],["whatsapp","Numéro WhatsApp","+237 6 98 54 80 16"],["email","Email","contact@abaia.com"],["adresse","Adresse","Cameroun"]].map(([key,label,ph])=>(
                   <div key={key}><label style={S.lbl}>{label}</label><input value={settings[key]||""} placeholder={ph} onChange={e=>setSettings(s=>({...s,[key]:e.target.value}))} style={S.input}/></div>
                 ))}
-                <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>Description</label><textarea value={settings.description||""} rows={4} onChange={e=>setSettings(s=>({...s,description:e.target.value}))} style={{...S.input,resize:"vertical"}}/></div>
               </div>
-              <button onClick={handleSaveSettings} style={{...S.btnG,marginTop:"20px"}}>💾 Sauvegarder</button>
+              <button onClick={handleSaveSettings} style={{...S.btnG,marginTop:"20px"}}>💾 Sauvegarder les infos</button>
+            </div>
+
+            {/* A PROPOS */}
+            <div style={S.card}>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"1.2rem",fontWeight:700,color:DARK,marginBottom:"16px"}}>Section « À Propos »</h3>
+              <div><label style={S.lbl}>Texte À Propos</label><textarea value={settings.description||""} rows={5} placeholder="Abaïa Cosmétique propose une gamme complète de soins de beauté naturels..." onChange={e=>setSettings(s=>({...s,description:e.target.value}))} style={{...S.input,resize:"vertical",lineHeight:"1.6"}}/></div>
+              <div style={{marginTop:"16px"}}>
+                <label style={S.lbl}>Image À Propos</label>
+                <div style={{borderRadius:"14px",overflow:"hidden",marginBottom:"14px",maxHeight:"200px",background:"rgba(184,134,11,0.06)",border:"1px solid rgba(184,134,11,0.15)"}}>
+                  {settings.products_image
+                    ? <img src={settings.products_image} alt="Produits" style={{width:"100%",objectFit:"cover",maxHeight:"200px"}}/>
+                    : <div style={{height:"140px",display:"flex",alignItems:"center",justifyContent:"center",color:"#bbb"}}><div style={{textAlign:"center"}}><div style={{fontSize:"1.5rem",marginBottom:"6px"}}>📸</div><p style={{fontSize:"0.78rem"}}>Aucune image</p></div></div>}
+                </div>
+                <label style={{display:"inline-block",padding:"8px 16px",background:`linear-gradient(135deg,${GOLD},#8B6914)`,borderRadius:"8px",color:"#fff",fontWeight:600,fontSize:"0.78rem",cursor:"pointer"}}>
+                  📁 Changer l'image
+                  <input type="file" accept="image/*" style={{display:"none"}} onChange={async e=>{if(!e.target.files[0])return;const url=await uploadImage(e.target.files[0],"about_"+Date.now());if(url){const ns={...settings,products_image:url};setSettings(ns);await upsertSettings({products_image:url});t("Image mise à jour !")}}}/>
+                </label>
+              </div>
+              <button onClick={handleSaveSettings} style={{...S.btnG,marginTop:"16px"}}>💾 Sauvegarder À Propos</button>
             </div>
 
             {/* Aperçu */}
@@ -653,7 +692,7 @@ function AbaiaSite() {
         <p style={{textAlign:"center",color:"#aaa",fontSize:"0.78rem",letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:"36px"}}>Les incontournables de la gamme</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:"20px"}}>
           {allProds.slice(0,6).map(p=>(
-            <div key={p.id} style={{background:"#fff",borderRadius:"18px",overflow:"hidden",boxShadow:"0 4px 20px rgba(184,134,11,0.07)",border:"1px solid rgba(197,165,90,0.12)",transition:"transform 0.2s,box-shadow 0.2s",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow="0 12px 40px rgba(184,134,11,0.15)"}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 4px 20px rgba(184,134,11,0.07)"}}>
+            <div key={p.id} onClick={()=>setSelectedProd(p)} style={{background:"#fff",borderRadius:"18px",overflow:"hidden",boxShadow:"0 4px 20px rgba(184,134,11,0.07)",border:"1px solid rgba(197,165,90,0.12)",transition:"transform 0.2s,box-shadow 0.2s",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow="0 12px 40px rgba(184,134,11,0.15)"}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 4px 20px rgba(184,134,11,0.07)"}}>
               <div style={{height:"180px",background:`linear-gradient(135deg,rgba(184,134,11,0.07),rgba(232,213,163,0.12))`,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden"}}>
                 {p.image_url
                   ? <img src={p.image_url} alt={p.nom} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
@@ -713,7 +752,7 @@ function AbaiaSite() {
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:"16px"}}>
             {filtered.map(p=>(
-              <div key={p.id} style={{background:"#fff",borderRadius:"16px",border:"1px solid rgba(197,165,90,0.15)",overflow:"hidden",boxShadow:"0 4px 16px rgba(184,134,11,0.05)",transition:"all 0.2s",display:"flex",flexDirection:"column"}} onMouseEnter={e=>e.currentTarget.style.boxShadow="0 8px 30px rgba(184,134,11,0.12)"} onMouseLeave={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(184,134,11,0.05)"}>
+              <div key={p.id} onClick={()=>setSelectedProd(p)} style={{background:"#fff",borderRadius:"16px",border:"1px solid rgba(197,165,90,0.15)",overflow:"hidden",boxShadow:"0 4px 16px rgba(184,134,11,0.05)",transition:"all 0.2s",display:"flex",flexDirection:"column",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.boxShadow="0 8px 30px rgba(184,134,11,0.12)"} onMouseLeave={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(184,134,11,0.05)"}>
                 <div style={{height:"160px",background:`linear-gradient(135deg,rgba(184,134,11,0.06),rgba(232,213,163,0.1))`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
                   {p.image_url
                     ? <img src={p.image_url} alt={p.nom} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
