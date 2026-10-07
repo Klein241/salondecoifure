@@ -1,0 +1,27 @@
+name = "digital-mark-pro"
+main = "worker/index.js"
+compatibility_date = "2024-09-23"
+account_id = "0c6536b2366b6a388b4d6a4d331d486e"
+
+# Cloudflare Workers Static Assets (Front-end SPA)
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Cloudflare D1 Database (100% remplace Supabase)
+[[d1_databases]]
+binding = "DB"
+database_name = "digitalmarkpro-db"
+database_id = "c5d4b722-d981-4884-b79a-bd4eff9f02bf"
+
+# Cloudflare R2 Storage (Vidéos, Affiches, Médias - 100% remplace Netlify Storage)
+[[r2_buckets]]
+binding = "R2_STORAGE"
+bucket_name = "digitalmarkpro-assets"
+
+[vars]
+ENVIRONMENT = "production"
+ADMIN_KEY = "dmp_admin_2026"
+DEFAULT_WHATSAPP = "24177000000"
+COMPANY_NAME = "DIGITAL MARK PRO"
