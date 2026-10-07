@@ -25,6 +25,9 @@ import {
   FileCheck,
   Layers,
   Zap,
+  Camera,
+  RefreshCw,
+  X,
 } from 'lucide-react';
 import {
   saveSettings,
@@ -55,7 +58,7 @@ export function AdminBackOffice({
   const [authError, setAuthError] = useState('');
 
   // 2. Navigation Back-office
-  const [activeTab, setActiveTab] = useState('landing'); // landing, videos, posters, packages, uploader
+  const [activeTab, setActiveTab] = useState('videos'); // default to videos
 
   // 3. Formulaire Landing Page
   const [landingForm, setLandingForm] = useState({
@@ -65,7 +68,8 @@ export function AdminBackOffice({
     default_whatsapp_message:
       settings.default_whatsapp_message ||
       '👋 Bonjour DIGITAL MARK PRO, je souhaite lancer un projet publicitaire.',
-    promo_banner_active: settings.promo_banner_active === 'true' || settings.promo_banner_active === true,
+    promo_banner_active:
+      settings.promo_banner_active === 'true' || settings.promo_banner_active === true,
     promo_banner_text:
       settings.promo_banner_text ||
       '🔥 OFFRE DE LANCEMENT : -20% sur votre 1ère vidéo publicitaire 4K avec le code PROMO20 !',
@@ -90,7 +94,6 @@ export function AdminBackOffice({
     eur_rate: settings.eur_rate || '655',
   });
 
-  // Sync settings when props change
   useEffect(() => {
     if (settings) {
       setLandingForm((prev) => ({
@@ -109,13 +112,16 @@ export function AdminBackOffice({
     setTimeout(() => setToastMessage(''), 3500);
   };
 
-  // State pour Vidéos
+  // State pour Édition Vidéo
   const [editingVideo, setEditingVideo] = useState(null);
   const [isNewVideoModalOpen, setIsNewVideoModalOpen] = useState(false);
+  const [videoFileUploading, setVideoFileUploading] = useState(false);
+  const [thumbFileUploading, setThumbFileUploading] = useState(false);
 
-  // State pour Affiches
+  // State pour Édition Affiche
   const [editingPoster, setEditingPoster] = useState(null);
   const [isNewPosterModalOpen, setIsNewPosterModalOpen] = useState(false);
+  const [posterFileUploading, setPosterFileUploading] = useState(false);
 
   // State pour Packs
   const [editingPackages, setEditingPackages] = useState(packages || []);
@@ -123,13 +129,18 @@ export function AdminBackOffice({
     if (packages) setEditingPackages(packages);
   }, [packages]);
 
-  // State pour Uploader & Compresseur
+  // State pour Uploader Global
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedResults, setUploadedResults] = useState([]);
   const [copiedUrl, setCopiedUrl] = useState('');
   const fileInputRef = useRef(null);
 
-  // Gestion du Login
+  // Refs pour inputs de fichiers modales
+  const modalVideoInputRef = useRef(null);
+  const modalThumbInputRef = useRef(null);
+  const modalPosterInputRef = useRef(null);
+
+  // Login
   const handleLogin = (e) => {
     e.preventDefault();
     const correctCode = settings.admin_code || '2026';
@@ -148,7 +159,182 @@ export function AdminBackOffice({
     if (onExitToSite) onExitToSite();
   };
 
-  // Sauvegarde Landing Page
+  // ========================================================
+  // COMPRESSION INTELLIGENTE IN-BROWSER
+  // ========================================================
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const maxDim = 1920;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return resolve(file);
+              const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+              const compressedFile = new File([blob], cleanName, {
+                type: 'image/webp',
+              });
+              resolve(compressedFile);
+            },
+            'image/webp',
+            0.82
+          );
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  };
+
+  // Extracteur automatique de miniature vidéo
+  const extractThumbnailFromVideo = (videoFile) => {
+    return new Promise((resolve) => {
+      try {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.src = URL.createObjectURL(videoFile);
+        video.muted = true;
+        video.playsInline = true;
+
+        video.onloadeddata = () => {
+          video.currentTime = Math.min(1.5, (video.duration || 3) / 2);
+        };
+
+        video.onseeked = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob(
+            (blob) => {
+              URL.revokeObjectURL(video.src);
+              if (!blob) return resolve(null);
+              const thumbFile = new File([blob], `thumb-${Date.now()}.webp`, {
+                type: 'image/webp',
+              });
+              resolve(thumbFile);
+            },
+            'image/webp',
+            0.82
+          );
+        };
+
+        video.onerror = () => {
+          URL.revokeObjectURL(video.src);
+          resolve(null);
+        };
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  };
+
+  // ========================================================
+  // UPLOAD DIRECT DANS LA MODALE VIDÉO (PAS D'URL MANUELLE !)
+  // ========================================================
+  const handleDirectVideoUpload = async (file) => {
+    if (!file) return;
+    setVideoFileUploading(true);
+    try {
+      showToast('⏳ Téléversement de la vidéo en cours...');
+      const res = await uploadMedia(file);
+      setEditingVideo((prev) => ({
+        ...prev,
+        video_url: res.url,
+        preview_url: res.url,
+      }));
+
+      // Si pas encore de miniature, on extrait automatiquement une frame de la vidéo en WebP !
+      if (!editingVideo.thumbnail_url) {
+        showToast('📸 Extraction automatique de la miniature WebP...');
+        const extractedThumb = await extractThumbnailFromVideo(file);
+        if (extractedThumb) {
+          const thumbRes = await uploadMedia(extractedThumb);
+          setEditingVideo((prev) => ({
+            ...prev,
+            thumbnail_url: thumbRes.url,
+          }));
+        }
+      }
+
+      showToast('✅ Vidéo téléversée avec succès !');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Erreur lors du téléversement de la vidéo');
+    } finally {
+      setVideoFileUploading(false);
+    }
+  };
+
+  const handleDirectThumbUpload = async (file) => {
+    if (!file) return;
+    setThumbFileUploading(true);
+    try {
+      showToast('⏳ Optimisation WebP de la miniature...');
+      const optimizedImage = await compressImage(file);
+      const res = await uploadMedia(optimizedImage);
+      setEditingVideo((prev) => ({
+        ...prev,
+        thumbnail_url: res.url,
+      }));
+      showToast('✅ Miniature optimisée et attachée !');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Erreur lors du téléversement de la miniature');
+    } finally {
+      setThumbFileUploading(false);
+    }
+  };
+
+  // ========================================================
+  // UPLOAD DIRECT DANS LA MODALE AFFICHE (PAS D'URL MANUELLE !)
+  // ========================================================
+  const handleDirectPosterUpload = async (file) => {
+    if (!file) return;
+    setPosterFileUploading(true);
+    try {
+      showToast('⏳ Compression WebP haute résolution de l\'affiche...');
+      const optimizedImage = await compressImage(file);
+      const res = await uploadMedia(optimizedImage);
+      setEditingPoster((prev) => ({
+        ...prev,
+        image_url: res.url,
+      }));
+      showToast('✅ Affiche optimisée et attachée !');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Erreur lors du téléversement de l\'affiche');
+    } finally {
+      setPosterFileUploading(false);
+    }
+  };
+
+  // Sauvegardes
   const handleSaveLanding = async () => {
     try {
       const payload = {
@@ -162,7 +348,6 @@ export function AdminBackOffice({
     }
   };
 
-  // Sauvegarde Vidéo
   const handleSaveVideoItem = async (videoItem) => {
     try {
       await saveVideo(videoItem);
@@ -194,7 +379,6 @@ export function AdminBackOffice({
     }
   };
 
-  // Sauvegarde Affiche
   const handleSavePosterItem = async (posterItem) => {
     try {
       await savePoster(posterItem);
@@ -226,7 +410,6 @@ export function AdminBackOffice({
     }
   };
 
-  // Sauvegarde Packs
   const handleSavePackages = async () => {
     try {
       for (const pkg of editingPackages) {
@@ -239,58 +422,7 @@ export function AdminBackOffice({
     }
   };
 
-  // ========================================================
-  // COMPRESSION INTELLIGENTE IN-BROWSER (Images WebP + Vidéos)
-  // ========================================================
-  const compressImage = (file) => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target.result;
-        img.onload = () => {
-          const maxDim = 1920;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Conversion WebP haute fidélité (qualité 0.82)
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) return resolve(file);
-              const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
-              const compressedFile = new File([blob], cleanName, {
-                type: 'image/webp',
-              });
-              resolve(compressedFile);
-            },
-            'image/webp',
-            0.82
-          );
-        };
-        img.onerror = () => resolve(file);
-      };
-      reader.onerror = () => resolve(file);
-    });
-  };
-
-  // Traiter et uploader les fichiers déposés
+  // Uploader global
   const processAndUploadFiles = async (filesList) => {
     setIsUploading(true);
     const results = [];
@@ -301,7 +433,6 @@ export function AdminBackOffice({
         const originalSize = rawFile.size;
         let isImage = rawFile.type.startsWith('image/');
 
-        // 1. Compression automatique si image
         if (isImage) {
           fileToUpload = await compressImage(rawFile);
         }
@@ -309,7 +440,6 @@ export function AdminBackOffice({
         const newSize = fileToUpload.size;
         const savingsPercent = Math.round(((originalSize - newSize) / originalSize) * 100);
 
-        // 2. Upload vers Cloud Storage R2
         const uploaded = await uploadMedia(fileToUpload);
 
         results.push({
@@ -427,7 +557,7 @@ export function AdminBackOffice({
           <div className="flex items-center gap-2.5">
             <button
               onClick={onExitToSite}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white border border-white/10 transition-colors"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white border border-white/10 transition-colors cursor-pointer"
             >
               <Eye className="w-3.5 h-3.5 text-amber-400" />
               <span>Voir le Site Public</span>
@@ -435,7 +565,7 @@ export function AdminBackOffice({
 
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-colors cursor-pointer"
               title="Se déconnecter"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -447,11 +577,11 @@ export function AdminBackOffice({
         {/* Navigation par Onglets */}
         <div className="max-w-7xl mx-auto mt-4 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {[
-            { id: 'landing', label: 'Landing Page (Textes & Éléments)', icon: Sliders },
-            { id: 'videos', label: `Vidéos (${(videos || []).length})`, icon: Film },
-            { id: 'posters', label: `Affiches (${(posters || []).length})`, icon: ImageIcon },
-            { id: 'packages', label: 'Packs & Formules', icon: Package },
-            { id: 'uploader', label: 'Uploader & Compresseur (Drag&Drop)', icon: Upload },
+            { id: 'videos', label: `🎬 Vidéos (${(videos || []).length})`, icon: Film },
+            { id: 'posters', label: `🎨 Affiches (${(posters || []).length})`, icon: ImageIcon },
+            { id: 'landing', label: '📝 Landing Page (Textes & Éléments)', icon: Sliders },
+            { id: 'packages', label: '📦 Packs & Formules', icon: Package },
+            { id: 'uploader', label: '⚡ Studio Upload & Optimisation', icon: Upload },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -476,7 +606,658 @@ export function AdminBackOffice({
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto p-4 md:p-8">
         {/* ======================================================== */}
-        {/* ONGLET 1 : MODIFIER TOUTE LA LANDING PAGE SANS EXCEPTION */}
+        {/* ONGLET 1 : GESTIONNAIRE DE VIDÉOS                       */}
+        {/* ======================================================== */}
+        {activeTab === 'videos' && (
+          <div className="space-y-6 animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0d121c] p-6 rounded-3xl border border-white/5">
+              <div>
+                <h2 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
+                  <Film className="w-5 h-5 text-amber-400" />
+                  Catalogue Vidéos
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Glissez-déposez directement vos fichiers vidéos et miniatures. Aucune saisie d'URL nécessaire !
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingVideo({
+                    id: `vid-${Date.now()}`,
+                    title: 'Nouvelle Vidéo Publicitaire',
+                    category: 'tiktok_reels',
+                    format: '9:16',
+                    duration: '30s',
+                    resolution: '4K Ultra HD',
+                    price_fcfa: 25000,
+                    price_eur: 39,
+                    badge: 'NOUVEAU',
+                    description: '',
+                    video_url: '',
+                    preview_url: '',
+                    thumbnail_url: '',
+                    features: ['Montage dynamique', 'Livraison 48h'],
+                  });
+                  setIsNewVideoModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs md:text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Ajouter une Nouvelle Vidéo</span>
+              </button>
+            </div>
+
+            {/* Grille des Vidéos Administrables */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {(videos || []).map((video) => (
+                <div
+                  key={video.id}
+                  className="bg-[#0d121c] border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xl"
+                >
+                  <div className="relative aspect-video bg-black">
+                    {video.thumbnail_url ? (
+                      <img
+                        src={video.thumbnail_url}
+                        alt={video.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : video.video_url ? (
+                      <video
+                        src={video.video_url}
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">
+                        Aucun fichier média
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2 flex gap-1">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500 text-black uppercase">
+                        {video.badge || video.format}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h4 className="font-bold text-white text-sm line-clamp-1">{video.title}</h4>
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">{video.description}</p>
+                      <div className="mt-3 flex items-center justify-between text-xs">
+                        <span className="text-amber-400 font-extrabold">
+                          {(video.price_fcfa || 25000).toLocaleString('fr-FR')} FCFA ({video.price_eur || 39}€)
+                        </span>
+                        <span className="text-slate-400">{video.duration} · {video.format}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingVideo(video);
+                          setIsNewVideoModalOpen(true);
+                        }}
+                        className="px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-white transition-colors cursor-pointer"
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => handleDeleteVideoItem(video.id)}
+                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors cursor-pointer"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* MODAL ÉDITION / AJOUT VIDÉO (100% UPLOAD / GLISSER-DÉPOSER) */}
+        {/* ======================================================== */}
+        {isNewVideoModalOpen && editingVideo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in">
+            <div className="bg-[#0d121c] border border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-3xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl relative">
+              <button
+                onClick={() => setIsNewVideoModalOpen(false)}
+                className="absolute top-5 right-5 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div>
+                <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
+                  <Film className="w-6 h-6 text-amber-400" />
+                  {editingVideo.title ? `Éditer : ${editingVideo.title}` : 'Nouvelle Vidéo'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Téléversez directement vos fichiers par glisser-déposer.
+                </p>
+              </div>
+
+              {/* Titre */}
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Titre de la vidéo</label>
+                <input
+                  type="text"
+                  value={editingVideo.title}
+                  onChange={(e) => setEditingVideo({ ...editingVideo, title: e.target.value })}
+                  placeholder="ex: Spot Publicitaire 4K Lancement de Marque"
+                  className="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-xl text-white text-sm focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              {/* ZONE 1 : UPLOAD FICHIER VIDÉO (DRAG & DROP) */}
+              <div className="space-y-2">
+                <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
+                  1. Fichier Vidéo (MP4, MOV, WebM) — Glisser-Déposer ou Parcourir
+                </label>
+
+                {editingVideo.video_url ? (
+                  <div className="p-4 bg-black/60 border border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
+                    <div className="w-40 aspect-video bg-black rounded-xl overflow-hidden shrink-0 border border-white/10">
+                      <video
+                        src={editingVideo.video_url}
+                        controls
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="flex-1 overflow-hidden space-y-1">
+                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>Fichier vidéo attaché & prêt !</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{editingVideo.video_url}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => modalVideoInputRef.current?.click()}
+                      className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold shrink-0 cursor-pointer"
+                    >
+                      Remplacer la vidéo
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleDirectVideoUpload(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onClick={() => modalVideoInputRef.current?.click()}
+                    className="p-8 border-2 border-dashed border-amber-500/40 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 rounded-2xl text-center cursor-pointer transition-all group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                      <Film className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-white">
+                      {videoFileUploading ? 'Téléversement en cours...' : 'Glissez-déposez votre fichier vidéo ici'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Ou cliquez pour sélectionner une vidéo depuis votre ordinateur
+                    </p>
+                    {videoFileUploading && (
+                      <div className="mt-3 flex items-center justify-center gap-2 text-amber-400 text-xs font-bold">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Envoi et optimisation en cours...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <input
+                  ref={modalVideoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleDirectVideoUpload(e.target.files[0]);
+                    }
+                  }}
+                />
+              </div>
+
+              {/* ZONE 2 : UPLOAD MINIATURE IMAGE (DRAG & DROP) */}
+              <div className="space-y-2">
+                <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
+                  2. Miniature Image (Cover / Thumbnail) — Auto-Compressée en WebP
+                </label>
+
+                {editingVideo.thumbnail_url ? (
+                  <div className="p-4 bg-black/60 border border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
+                    <img
+                      src={editingVideo.thumbnail_url}
+                      alt="Miniature"
+                      className="w-28 h-20 object-cover rounded-xl border border-white/10 shrink-0"
+                    />
+                    <div className="flex-1 overflow-hidden space-y-1">
+                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>Miniature optimisée en WebP</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{editingVideo.thumbnail_url}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => modalThumbInputRef.current?.click()}
+                      className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold shrink-0 cursor-pointer"
+                    >
+                      Changer la miniature
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleDirectThumbUpload(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onClick={() => modalThumbInputRef.current?.click()}
+                    className="p-6 border-2 border-dashed border-white/20 hover:border-amber-400 bg-white/5 hover:bg-white/10 rounded-2xl text-center cursor-pointer transition-all group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-white/10 text-amber-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs font-bold text-white">
+                      {thumbFileUploading ? 'Optimisation en cours...' : 'Glissez-déposez une image de miniature'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Conversion automatique en WebP (taille réduite de 95%)
+                    </p>
+                    {thumbFileUploading && (
+                      <div className="mt-2 flex items-center justify-center gap-2 text-amber-400 text-xs font-bold">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Compression WebP...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <input
+                  ref={modalThumbInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleDirectThumbUpload(e.target.files[0]);
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Options & Métadonnées */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Catégorie</label>
+                  <select
+                    value={editingVideo.category}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, category: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
+                  >
+                    <option value="tiktok_reels">TikTok & Reels 9:16</option>
+                    <option value="spot_tv">Spot Publicitaire 16:9</option>
+                    <option value="motion_design">Motion Design 3D</option>
+                    <option value="ugc">UGC & Créateurs</option>
+                    <option value="vsl_ecommerce">VSL & Vente</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Format</label>
+                  <select
+                    value={editingVideo.format}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, format: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
+                  >
+                    <option value="9:16">Vertical 9:16</option>
+                    <option value="16:9">Horizontal 16:9</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Durée</label>
+                  <input
+                    type="text"
+                    value={editingVideo.duration}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, duration: e.target.value })}
+                    placeholder="30s"
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Badge</label>
+                  <input
+                    type="text"
+                    value={editingVideo.badge}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, badge: e.target.value })}
+                    placeholder="ex: 🔥 BEST-SELLER"
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Tarifs */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix (FCFA)</label>
+                  <input
+                    type="number"
+                    value={editingVideo.price_fcfa}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, price_fcfa: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-amber-400 font-extrabold text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix (EUR)</label>
+                  <input
+                    type="number"
+                    value={editingVideo.price_eur}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, price_eur: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-amber-400 font-extrabold text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={editingVideo.description}
+                  onChange={(e) => setEditingVideo({ ...editingVideo, description: e.target.value })}
+                  placeholder="Décrivez les atouts de cette vidéo pour le client..."
+                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
+                />
+              </div>
+
+              {/* Puces de prestations */}
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Prestations incluses (1 par ligne)
+                </label>
+                <textarea
+                  rows={3}
+                  value={Array.isArray(editingVideo.features) ? editingVideo.features.join('\n') : ''}
+                  onChange={(e) =>
+                    setEditingVideo({
+                      ...editingVideo,
+                      features: e.target.value.split('\n').filter((l) => l.trim().length > 0),
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-slate-200 text-xs font-mono"
+                />
+              </div>
+
+              {/* Boutons d'action */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsNewVideoModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveVideoItem(editingVideo)}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 cursor-pointer"
+                >
+                  Sauvegarder la Vidéo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* ONGLET 2 : GESTIONNAIRE D'AFFICHES (DRAG & DROP)        */}
+        {/* ======================================================== */}
+        {activeTab === 'posters' && (
+          <div className="space-y-6 animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0d121c] p-6 rounded-3xl border border-white/5">
+              <div>
+                <h2 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-amber-400" />
+                  Catalogue Affiches & Graphismes
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Glissez-déposez vos visuels haute définition. Ils sont automatiquement compressés en WebP.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingPoster({
+                    id: `post-${Date.now()}`,
+                    title: 'Nouvelle Affiche Publicitaire',
+                    category: 'Affiche Événementielle',
+                    format: 'A3 / A2 Print',
+                    dimensions: '1080x1080',
+                    price_fcfa: 15000,
+                    price_eur: 25,
+                    badge: 'NOUVEAU',
+                    description: '',
+                    image_url: '',
+                    features: ['Fichier HD Print', 'Format Web Réseaux'],
+                  });
+                  setIsNewPosterModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs md:text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Ajouter une Nouvelle Affiche</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {(posters || []).map((poster) => (
+                <div
+                  key={poster.id}
+                  className="bg-[#0d121c] border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xl"
+                >
+                  <div className="aspect-square bg-black relative">
+                    <img
+                      src={poster.image_url || 'https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format&fit=crop&w=600&q=80'}
+                      alt={poster.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h4 className="font-bold text-white text-sm line-clamp-1">{poster.title}</h4>
+                      <p className="text-xs text-amber-400 font-extrabold mt-1">
+                        {(poster.price_fcfa || 15000).toLocaleString('fr-FR')} FCFA ({poster.price_eur || 25}€)
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingPoster(poster);
+                          setIsNewPosterModalOpen(true);
+                        }}
+                        className="px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-white cursor-pointer"
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => handleDeletePosterItem(poster.id)}
+                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL ÉDITION AFFICHE (100% GLISSER-DÉPOSER) */}
+        {isNewPosterModalOpen && editingPoster && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in">
+            <div className="bg-[#0d121c] border border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-xl w-full max-h-[92vh] overflow-y-auto space-y-5 shadow-2xl relative">
+              <button
+                onClick={() => setIsNewPosterModalOpen(false)}
+                className="absolute top-5 right-5 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div>
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-amber-400" />
+                  {editingPoster.title ? `Éditer : ${editingPoster.title}` : 'Nouvelle Affiche'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">Téléversez votre affiche haute définition.</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Titre de l'Affiche</label>
+                <input
+                  type="text"
+                  value={editingPoster.title}
+                  onChange={(e) => setEditingPoster({ ...editingPoster, title: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-xl text-white text-sm"
+                />
+              </div>
+
+              {/* ZONE UPLOAD DIRECT AFFICHE (GLISSER-DÉPOSER) */}
+              <div className="space-y-2">
+                <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
+                  Visuel de l'Affiche — Glisser-Déposer ou Parcourir
+                </label>
+
+                {editingPoster.image_url ? (
+                  <div className="p-4 bg-black/60 border border-emerald-500/30 rounded-2xl flex items-center gap-4">
+                    <img
+                      src={editingPoster.image_url}
+                      alt="Affiche"
+                      className="w-20 h-20 object-cover rounded-xl border border-white/10 shrink-0"
+                    />
+                    <div className="flex-1 overflow-hidden space-y-1">
+                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>Affiche optimisée en WebP</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{editingPoster.image_url}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => modalPosterInputRef.current?.click()}
+                      className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold shrink-0 cursor-pointer"
+                    >
+                      Remplacer
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleDirectPosterUpload(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onClick={() => modalPosterInputRef.current?.click()}
+                    className="p-8 border-2 border-dashed border-amber-500/40 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 rounded-2xl text-center cursor-pointer transition-all group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-white">
+                      {posterFileUploading ? 'Compression en cours...' : 'Glissez-déposez le fichier image de l\'affiche ici'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      PNG, JPG ou WebP. Compression automatique à 82% sans perte de qualité.
+                    </p>
+                    {posterFileUploading && (
+                      <div className="mt-3 flex items-center justify-center gap-2 text-amber-400 text-xs font-bold">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Téléversement en cours...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <input
+                  ref={modalPosterInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleDirectPosterUpload(e.target.files[0]);
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix FCFA</label>
+                  <input
+                    type="number"
+                    value={editingPoster.price_fcfa}
+                    onChange={(e) => setEditingPoster({ ...editingPoster, price_fcfa: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold text-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix EUR</label>
+                  <input
+                    type="number"
+                    value={editingPoster.price_eur}
+                    onChange={(e) => setEditingPoster({ ...editingPoster, price_eur: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold text-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={editingPoster.description}
+                  onChange={(e) => setEditingPoster({ ...editingPoster, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsNewPosterModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSavePosterItem(editingPoster)}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs cursor-pointer"
+                >
+                  Sauvegarder l'Affiche
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* ONGLET 3 : MODIFIER TOUTE LA LANDING PAGE               */}
         {/* ======================================================== */}
         {activeTab === 'landing' && (
           <div className="space-y-8 animate-in fade-in">
@@ -705,416 +1486,24 @@ export function AdminBackOffice({
         )}
 
         {/* ======================================================== */}
-        {/* ONGLET 2 : GESTIONNAIRE DE VIDÉOS                       */}
-        {/* ======================================================== */}
-        {activeTab === 'videos' && (
-          <div className="space-y-6 animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl md:text-2xl font-black text-white">Catalogue Vidéos</h2>
-                <p className="text-xs text-slate-400">
-                  Gérez les prix, descriptions et liens de vos vidéos publicitaires.
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setEditingVideo({
-                    id: `vid-${Date.now()}`,
-                    title: 'Nouvelle Vidéo Publicitaire',
-                    category: 'tiktok_reels',
-                    format: '9:16',
-                    duration: '30s',
-                    resolution: '4K Ultra HD',
-                    price_fcfa: 25000,
-                    price_eur: 39,
-                    badge: 'NOUVEAU',
-                    description: '',
-                    video_url: '',
-                    preview_url: '',
-                    thumbnail_url: '',
-                    features: ['Montage dynamique', 'Livraison 48h'],
-                  });
-                  setIsNewVideoModalOpen(true);
-                }}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs md:text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Ajouter une Vidéo</span>
-              </button>
-            </div>
-
-            {/* Grille des Vidéos Administrables */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {(videos || []).map((video) => (
-                <div
-                  key={video.id}
-                  className="bg-[#0d121c] border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between"
-                >
-                  <div className="relative aspect-video bg-black">
-                    <img
-                      src={video.thumbnail_url || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=600&q=80'}
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-2 left-2 flex gap-1">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500 text-black uppercase">
-                        {video.badge || video.format}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="font-bold text-white text-sm line-clamp-1">{video.title}</h4>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">{video.description}</p>
-                      <div className="mt-3 flex items-center justify-between text-xs">
-                        <span className="text-amber-400 font-extrabold">
-                          {(video.price_fcfa || 25000).toLocaleString('fr-FR')} FCFA ({video.price_eur || 39}€)
-                        </span>
-                        <span className="text-slate-400">{video.duration} · {video.format}</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingVideo(video);
-                          setIsNewVideoModalOpen(true);
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-white transition-colors"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => handleDeleteVideoItem(video.id)}
-                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* MODAL ÉDITION / AJOUT VIDÉO */}
-        {isNewVideoModalOpen && editingVideo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-            <div className="bg-[#0d121c] border border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-4">
-              <h3 className="text-xl font-black text-white">Éditer la Vidéo</h3>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Titre de la vidéo</label>
-                <input
-                  type="text"
-                  value={editingVideo.title}
-                  onChange={(e) => setEditingVideo({ ...editingVideo, title: e.target.value })}
-                  className="w-full px-4 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Catégorie</label>
-                  <select
-                    value={editingVideo.category}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                  >
-                    <option value="tiktok_reels">TikTok & Reels 9:16</option>
-                    <option value="spot_tv">Spot Publicitaire 16:9</option>
-                    <option value="motion_design">Motion Design 3D</option>
-                    <option value="ugc">UGC & Créateurs</option>
-                    <option value="vsl_ecommerce">VSL & Vente</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Format</label>
-                  <select
-                    value={editingVideo.format}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, format: e.target.value })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                  >
-                    <option value="9:16">Vertical 9:16 (TikTok/Reels)</option>
-                    <option value="16:9">Horizontal 16:9 (Spot 4K / TV)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Durée</label>
-                  <input
-                    type="text"
-                    value={editingVideo.duration}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, duration: e.target.value })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix (FCFA)</label>
-                  <input
-                    type="number"
-                    value={editingVideo.price_fcfa}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, price_fcfa: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-mono text-amber-400 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix (EUR)</label>
-                  <input
-                    type="number"
-                    value={editingVideo.price_eur}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, price_eur: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-mono text-amber-400 font-bold"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">URL de la Vidéo (MP4 ou lien CDN)</label>
-                <input
-                  type="text"
-                  value={editingVideo.video_url}
-                  onChange={(e) => setEditingVideo({ ...editingVideo, video_url: e.target.value, preview_url: e.target.value })}
-                  placeholder="https://... ou collez le lien généré depuis l'uploader"
-                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">URL Miniature Image</label>
-                <input
-                  type="text"
-                  value={editingVideo.thumbnail_url}
-                  onChange={(e) => setEditingVideo({ ...editingVideo, thumbnail_url: e.target.value })}
-                  placeholder="https://images.unsplash..."
-                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Description</label>
-                <textarea
-                  rows={2}
-                  value={editingVideo.description}
-                  onChange={(e) => setEditingVideo({ ...editingVideo, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Prestations incluses (1 par ligne)
-                </label>
-                <textarea
-                  rows={3}
-                  value={Array.isArray(editingVideo.features) ? editingVideo.features.join('\n') : ''}
-                  onChange={(e) =>
-                    setEditingVideo({
-                      ...editingVideo,
-                      features: e.target.value.split('\n').filter((l) => l.trim().length > 0),
-                    })
-                  }
-                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-mono"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-                <button
-                  onClick={() => setIsNewVideoModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={() => handleSaveVideoItem(editingVideo)}
-                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs"
-                >
-                  Sauvegarder la Vidéo
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* ONGLET 3 : GESTIONNAIRE D'AFFICHES                      */}
-        {/* ======================================================== */}
-        {activeTab === 'posters' && (
-          <div className="space-y-6 animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl md:text-2xl font-black text-white">Catalogue Affiches</h2>
-                <p className="text-xs text-slate-400">
-                  Gérez les formats, tarifs et visuels d'affiches publicitaires.
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setEditingPoster({
-                    id: `post-${Date.now()}`,
-                    title: 'Nouvelle Affiche Publicitaire',
-                    category: 'Affiche Événementielle',
-                    format: 'A3 / A2 Print',
-                    dimensions: '1080x1080',
-                    price_fcfa: 15000,
-                    price_eur: 25,
-                    badge: 'NOUVEAU',
-                    description: '',
-                    image_url: '',
-                    features: ['Fichier HD Print', 'Format Web Réseaux'],
-                  });
-                  setIsNewPosterModalOpen(true);
-                }}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs md:text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Ajouter une Affiche</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {(posters || []).map((poster) => (
-                <div
-                  key={poster.id}
-                  className="bg-[#0d121c] border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between"
-                >
-                  <div className="aspect-square bg-black relative">
-                    <img
-                      src={poster.image_url || 'https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format&fit=crop&w=600&q=80'}
-                      alt={poster.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="font-bold text-white text-sm">{poster.title}</h4>
-                      <p className="text-xs text-amber-400 font-extrabold mt-1">
-                        {(poster.price_fcfa || 15000).toLocaleString('fr-FR')} FCFA ({poster.price_eur || 25}€)
-                      </p>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingPoster(poster);
-                          setIsNewPosterModalOpen(true);
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-white"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => handleDeletePosterItem(poster.id)}
-                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* MODAL ÉDITION AFFICHE */}
-        {isNewPosterModalOpen && editingPoster && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-            <div className="bg-[#0d121c] border border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto space-y-4">
-              <h3 className="text-xl font-black text-white">Éditer l'Affiche</h3>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Titre de l'Affiche</label>
-                <input
-                  type="text"
-                  value={editingPoster.title}
-                  onChange={(e) => setEditingPoster({ ...editingPoster, title: e.target.value })}
-                  className="w-full px-4 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix FCFA</label>
-                  <input
-                    type="number"
-                    value={editingPoster.price_fcfa}
-                    onChange={(e) => setEditingPoster({ ...editingPoster, price_fcfa: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold text-amber-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Prix EUR</label>
-                  <input
-                    type="number"
-                    value={editingPoster.price_eur}
-                    onChange={(e) => setEditingPoster({ ...editingPoster, price_eur: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold text-amber-400"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">URL Image Haute Définition</label>
-                <input
-                  type="text"
-                  value={editingPoster.image_url}
-                  onChange={(e) => setEditingPoster({ ...editingPoster, image_url: e.target.value })}
-                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Description</label>
-                <textarea
-                  rows={2}
-                  value={editingPoster.description}
-                  onChange={(e) => setEditingPoster({ ...editingPoster, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-                <button
-                  onClick={() => setIsNewPosterModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={() => handleSavePosterItem(editingPoster)}
-                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs"
-                >
-                  Sauvegarder l'Affiche
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ======================================================== */}
         {/* ONGLET 4 : GESTIONNAIRE DE PACKS & FORMULES              */}
         {/* ======================================================== */}
         {activeTab === 'packages' && (
           <div className="space-y-6 animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0d121c] p-6 rounded-3xl border border-white/5">
               <div>
-                <h2 className="text-xl md:text-2xl font-black text-white">Formules & Packs Tarifs</h2>
-                <p className="text-xs text-slate-400">
+                <h2 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
+                  <Package className="w-5 h-5 text-amber-400" />
+                  Formules & Packs Tarifs
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
                   Modifiez les offres clés en main (Starter, Business, Signature).
                 </p>
               </div>
 
               <button
                 onClick={handleSavePackages}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs md:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs md:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 <span>Enregistrer les Packs</span>
@@ -1228,7 +1617,7 @@ export function AdminBackOffice({
         )}
 
         {/* ======================================================== */}
-        {/* ONGLET 5 : UPLOADER & COMPRESSEUR INTELLIGENT (DRAG&DROP) */}
+        {/* ONGLET 5 : UPLOADER & COMPRESSEUR GLOBAL                 */}
         {/* ======================================================== */}
         {activeTab === 'uploader' && (
           <div className="space-y-8 animate-in fade-in">
@@ -1242,18 +1631,16 @@ export function AdminBackOffice({
                     Studio de Téléversement & Compression Intelligente
                   </h2>
                   <p className="text-xs md:text-sm text-slate-400">
-                    Glissez-déposez vos vidéos ou images. Les fichiers sont automatiquement
-                    convertis et optimisés sans perte de qualité pour préserver le quota gratuit.
+                    Déposez vos vidéos et images. Vous pouvez ensuite les assigner directement en 1 clic à vos créations !
                   </p>
                 </div>
               </div>
 
-              {/* Info Quota */}
               <div className="mt-4 p-4 rounded-2xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-300">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   <span>
-                    <strong>Stockage Cloud Optimisé :</strong> 10 Go gratuits inclus, bande passante de lecture illimitée (0$ de frais de sortie).
+                    <strong>Stockage Cloud Optimisé :</strong> 10 Go gratuits inclus, bande passante de lecture illimitée.
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-amber-400 font-bold">
@@ -1292,7 +1679,7 @@ export function AdminBackOffice({
               </div>
 
               <h3 className="text-lg md:text-xl font-black text-white">
-                Glissez & Déposez vos Vidéos (MP4, WebM) ou Images (PNG, JPG) ici
+                Glissez & Déposez vos Vidéos ou Images ici
               </h3>
               <p className="text-xs md:text-sm text-slate-400 mt-2 max-w-md mx-auto">
                 Ou cliquez pour sélectionner vos fichiers. La compression automatique s'exécute directement dans votre navigateur avant l'envoi.
@@ -1310,7 +1697,7 @@ export function AdminBackOffice({
             {uploadedResults.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-extrabold uppercase text-amber-400 tracking-wider">
-                  Fichiers Récemment Téléversés & Liens Directs
+                  Fichiers Récemment Téléversés
                 </h3>
 
                 <div className="grid grid-cols-1 gap-3">
@@ -1342,6 +1729,57 @@ export function AdminBackOffice({
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        {item.isVideo && (
+                          <button
+                            onClick={() => {
+                              setEditingVideo({
+                                id: `vid-${Date.now()}`,
+                                title: item.name.replace(/\.[^/.]+$/, ''),
+                                category: 'tiktok_reels',
+                                format: '9:16',
+                                duration: '30s',
+                                resolution: '4K Ultra HD',
+                                price_fcfa: 25000,
+                                price_eur: 39,
+                                badge: 'NOUVEAU',
+                                description: '',
+                                video_url: item.url,
+                                preview_url: item.url,
+                                thumbnail_url: '',
+                                features: ['Montage dynamique', 'Livraison 48h'],
+                              });
+                              setIsNewVideoModalOpen(true);
+                            }}
+                            className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            ➕ Créer une Vidéo avec ce fichier
+                          </button>
+                        )}
+
+                        {item.isImage && (
+                          <button
+                            onClick={() => {
+                              setEditingPoster({
+                                id: `post-${Date.now()}`,
+                                title: item.name.replace(/\.[^/.]+$/, ''),
+                                category: 'Affiche Publicitaire',
+                                format: 'A3 Print',
+                                dimensions: '1080x1080',
+                                price_fcfa: 15000,
+                                price_eur: 25,
+                                badge: 'NOUVEAU',
+                                description: '',
+                                image_url: item.url,
+                                features: ['Fichier HD Print', 'Format Réseaux'],
+                              });
+                              setIsNewPosterModalOpen(true);
+                            }}
+                            className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            ➕ Créer une Affiche avec ce fichier
+                          </button>
+                        )}
+
                         <button
                           onClick={() => {
                             const fullUrl = window.location.origin + item.url;
@@ -1350,29 +1788,15 @@ export function AdminBackOffice({
                             showToast('📋 Lien copié dans le presse-papier !');
                             setTimeout(() => setCopiedUrl(''), 2000);
                           }}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-white border border-white/10 transition-colors"
+                          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-white border border-white/10 transition-colors"
+                          title="Copier le lien"
                         >
                           {copiedUrl === item.url ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Copié !</span>
-                            </>
+                            <Check className="w-4 h-4 text-emerald-400" />
                           ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copier l'URL</span>
-                            </>
+                            <Copy className="w-4 h-4" />
                           )}
                         </button>
-
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-colors"
-                        >
-                          Tester
-                        </a>
                       </div>
                     </div>
                   ))}
