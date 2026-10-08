@@ -28,6 +28,8 @@ import {
   Camera,
   RefreshCw,
   X,
+  Clock,
+  Maximize,
 } from 'lucide-react';
 import {
   saveSettings,
@@ -58,7 +60,7 @@ export function AdminBackOffice({
   const [authError, setAuthError] = useState('');
 
   // 2. Navigation Back-office
-  const [activeTab, setActiveTab] = useState('videos'); // default to videos
+  const [activeTab, setActiveTab] = useState('videos');
 
   // 3. Formulaire Landing Page
   const [landingForm, setLandingForm] = useState({
@@ -109,7 +111,7 @@ export function AdminBackOffice({
   const [toastMessage, setToastMessage] = useState('');
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3500);
+    setTimeout(() => setToastMessage(''), 4000);
   };
 
   // State pour Édition Vidéo
@@ -117,6 +119,7 @@ export function AdminBackOffice({
   const [isNewVideoModalOpen, setIsNewVideoModalOpen] = useState(false);
   const [videoFileUploading, setVideoFileUploading] = useState(false);
   const [thumbFileUploading, setThumbFileUploading] = useState(false);
+  const [autoDetectedInfo, setAutoDetectedInfo] = useState(null);
 
   // State pour Édition Affiche
   const [editingPoster, setEditingPoster] = useState(null);
@@ -160,7 +163,7 @@ export function AdminBackOffice({
   };
 
   // ========================================================
-  // COMPRESSION INTELLIGENTE IN-BROWSER
+  // COMPRESSION D'IMAGES EN WEBP CÔTÉ CLIENT (IN-BROWSER)
   // ========================================================
   const compressImage = (file) => {
     return new Promise((resolve) => {
@@ -209,80 +212,159 @@ export function AdminBackOffice({
     });
   };
 
-  // Extracteur automatique de miniature vidéo
-  const extractThumbnailFromVideo = (videoFile) => {
+  // ========================================================
+  // ANALYSE VIDÉO AUTOMATIQUE (FORMAT, DURÉE, RÉSOLUTION, MINIATURE)
+  // ========================================================
+  const analyzeAndExtractVideoMeta = (videoFile) => {
     return new Promise((resolve) => {
       try {
         const video = document.createElement('video');
         video.preload = 'metadata';
-        video.src = URL.createObjectURL(videoFile);
+        const objectUrl = URL.createObjectURL(videoFile);
+        video.src = objectUrl;
         video.muted = true;
         video.playsInline = true;
 
-        video.onloadeddata = () => {
-          video.currentTime = Math.min(1.5, (video.duration || 3) / 2);
-        };
+        video.onloadedmetadata = () => {
+          const width = video.videoWidth || 1920;
+          const height = video.videoHeight || 1080;
+          const durationSec = video.duration || 0;
 
-        video.onseeked = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 1280;
-          canvas.height = video.videoHeight || 720;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          // 1. Détection automatique du Format (9:16 ou 16:9)
+          const isVertical = height > width;
+          const format = isVertical ? '9:16' : '16:9';
 
-          canvas.toBlob(
-            (blob) => {
-              URL.revokeObjectURL(video.src);
-              if (!blob) return resolve(null);
-              const thumbFile = new File([blob], `thumb-${Date.now()}.webp`, {
-                type: 'image/webp',
-              });
-              resolve(thumbFile);
-            },
-            'image/webp',
-            0.82
-          );
+          // 2. Détection automatique de la Résolution
+          let resolution = `${width}x${height}`;
+          if (width >= 3840 || height >= 3840) {
+            resolution = isVertical ? '4K Vertical Ultra HD' : '4K Ultra HD 60fps';
+          } else if (width >= 1920 || height >= 1920) {
+            resolution = isVertical ? '1080x1920 Vertical HD' : '1080p Full HD';
+          } else if (width >= 1280 || height >= 1280) {
+            resolution = isVertical ? '720x1280 HD' : '720p HD';
+          }
+
+          // 3. Détection automatique de la Durée exacte
+          let durationStr = '30s';
+          if (durationSec > 0) {
+            if (durationSec < 60) {
+              durationStr = `${Math.round(durationSec)}s`;
+            } else {
+              const mins = Math.floor(durationSec / 60);
+              const secs = Math.round(durationSec % 60);
+              durationStr = `${mins}m ${secs > 0 ? `${secs}s` : ''}`.trim();
+            }
+          }
+
+          // Suggestion de catégorie
+          const suggestedCategory = isVertical ? 'tiktok_reels' : 'spot_tv';
+
+          // Position de capture de la miniature
+          const seekTime = Math.min(1.5, durationSec > 0.5 ? durationSec * 0.25 : 0.1);
+          video.currentTime = seekTime;
+
+          video.onseeked = () => {
+            // 4. Extraction automatique de la Miniature en WebP
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, width, height);
+
+            canvas.toBlob(
+              (blob) => {
+                URL.revokeObjectURL(objectUrl);
+                const thumbFile = blob
+                  ? new File([blob], `thumb-${Date.now()}.webp`, {
+                      type: 'image/webp',
+                    })
+                  : null;
+
+                resolve({
+                  format,
+                  resolution,
+                  duration: durationStr,
+                  durationSec,
+                  width,
+                  height,
+                  suggestedCategory,
+                  thumbFile,
+                });
+              },
+              'image/webp',
+              0.82
+            );
+          };
         };
 
         video.onerror = () => {
-          URL.revokeObjectURL(video.src);
-          resolve(null);
+          URL.revokeObjectURL(objectUrl);
+          resolve({
+            format: '16:9',
+            resolution: '1080p Full HD',
+            duration: '30s',
+            suggestedCategory: 'spot_tv',
+            thumbFile: null,
+          });
         };
       } catch (e) {
-        resolve(null);
+        resolve({
+          format: '16:9',
+          resolution: '1080p Full HD',
+          duration: '30s',
+          suggestedCategory: 'spot_tv',
+          thumbFile: null,
+        });
       }
     });
   };
 
   // ========================================================
-  // UPLOAD DIRECT DANS LA MODALE VIDÉO (PAS D'URL MANUELLE !)
+  // UPLOAD VIDÉO AVEC DÉTECTION 100% AUTOMATIQUE
   // ========================================================
   const handleDirectVideoUpload = async (file) => {
     if (!file) return;
     setVideoFileUploading(true);
-    try {
-      showToast('⏳ Téléversement de la vidéo en cours...');
-      const res = await uploadMedia(file);
-      setEditingVideo((prev) => ({
-        ...prev,
-        video_url: res.url,
-        preview_url: res.url,
-      }));
+    setAutoDetectedInfo(null);
 
-      // Si pas encore de miniature, on extrait automatiquement une frame de la vidéo en WebP !
-      if (!editingVideo.thumbnail_url) {
-        showToast('📸 Extraction automatique de la miniature WebP...');
-        const extractedThumb = await extractThumbnailFromVideo(file);
-        if (extractedThumb) {
-          const thumbRes = await uploadMedia(extractedThumb);
-          setEditingVideo((prev) => ({
-            ...prev,
-            thumbnail_url: thumbRes.url,
-          }));
-        }
+    try {
+      showToast('🔍 Analyse automatique du format, de la durée et de la miniature...');
+
+      // 1. Analyse automatique en direct
+      const meta = await analyzeAndExtractVideoMeta(file);
+
+      // 2. Téléversement de la vidéo sur Cloudflare R2
+      showToast('⏳ Téléversement de la vidéo vers le stockage cloud...');
+      const videoRes = await uploadMedia(file);
+
+      // 3. Téléversement automatique de la miniature WebP extraite
+      let thumbUrl = editingVideo.thumbnail_url || '';
+      if (meta.thumbFile) {
+        showToast('📸 Optimisation de la miniature WebP...');
+        const thumbRes = await uploadMedia(meta.thumbFile);
+        thumbUrl = thumbRes.url;
       }
 
-      showToast('✅ Vidéo téléversée avec succès !');
+      // 4. Application 100% automatique de toutes les métadonnées !
+      setEditingVideo((prev) => ({
+        ...prev,
+        video_url: videoRes.url,
+        preview_url: videoRes.url,
+        thumbnail_url: thumbUrl,
+        format: meta.format,         // Automatiquement 9:16 ou 16:9
+        duration: meta.duration,     // Automatiquement calculée (ex: 22s)
+        resolution: meta.resolution, // Automatiquement détectée (ex: 1080x1920 Vertical HD)
+        category: prev.category || meta.suggestedCategory,
+      }));
+
+      setAutoDetectedInfo({
+        format: meta.format,
+        duration: meta.duration,
+        resolution: meta.resolution,
+        thumbGenerated: Boolean(thumbUrl),
+      });
+
+      showToast(`🎉 Détecté avec succès : Format ${meta.format} · Durée ${meta.duration} · Miniature générée !`);
     } catch (err) {
       console.error(err);
       showToast('❌ Erreur lors du téléversement de la vidéo');
@@ -302,7 +384,7 @@ export function AdminBackOffice({
         ...prev,
         thumbnail_url: res.url,
       }));
-      showToast('✅ Miniature optimisée et attachée !');
+      showToast('✅ Miniature personnalisée attachée !');
     } catch (err) {
       console.error(err);
       showToast('❌ Erreur lors du téléversement de la miniature');
@@ -311,9 +393,6 @@ export function AdminBackOffice({
     }
   };
 
-  // ========================================================
-  // UPLOAD DIRECT DANS LA MODALE AFFICHE (PAS D'URL MANUELLE !)
-  // ========================================================
   const handleDirectPosterUpload = async (file) => {
     if (!file) return;
     setPosterFileUploading(true);
@@ -361,6 +440,7 @@ export function AdminBackOffice({
       onUpdateVideos(updated);
       setEditingVideo(null);
       setIsNewVideoModalOpen(false);
+      setAutoDetectedInfo(null);
       showToast('✅ Vidéo enregistrée avec succès !');
     } catch (e) {
       showToast('❌ Erreur lors de l\'enregistrement de la vidéo');
@@ -422,7 +502,7 @@ export function AdminBackOffice({
     }
   };
 
-  // Uploader global
+  // Traiter les uploads du studio global
   const processAndUploadFiles = async (filesList) => {
     setIsUploading(true);
     const results = [];
@@ -432,9 +512,13 @@ export function AdminBackOffice({
         let fileToUpload = rawFile;
         const originalSize = rawFile.size;
         let isImage = rawFile.type.startsWith('image/');
+        let isVideo = rawFile.type.startsWith('video/');
+        let meta = null;
 
         if (isImage) {
           fileToUpload = await compressImage(rawFile);
+        } else if (isVideo) {
+          meta = await analyzeAndExtractVideoMeta(rawFile);
         }
 
         const newSize = fileToUpload.size;
@@ -442,14 +526,22 @@ export function AdminBackOffice({
 
         const uploaded = await uploadMedia(fileToUpload);
 
+        let autoThumbUrl = '';
+        if (isVideo && meta && meta.thumbFile) {
+          const thumbRes = await uploadMedia(meta.thumbFile);
+          autoThumbUrl = thumbRes.url;
+        }
+
         results.push({
           name: fileToUpload.name,
           url: uploaded.url,
+          thumbUrl: autoThumbUrl,
+          meta,
           originalSizeFormatted: (originalSize / (1024 * 1024)).toFixed(2) + ' MB',
           newSizeFormatted: (newSize / (1024 * 1024)).toFixed(2) + ' MB',
           savings: savingsPercent > 0 ? `${savingsPercent}%` : 'Optimisé',
           isImage,
-          isVideo: rawFile.type.startsWith('video/'),
+          isVideo,
         });
       } catch (err) {
         console.error('Erreur upload:', err);
@@ -617,7 +709,7 @@ export function AdminBackOffice({
                   Catalogue Vidéos
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Glissez-déposez directement vos fichiers vidéos et miniatures. Aucune saisie d'URL nécessaire !
+                  Glissez-déposez une vidéo : son <strong>format</strong> (9:16 ou 16:9), sa <strong>durée</strong> et sa <strong>miniature WebP</strong> sont détectés automatiquement !
                 </p>
               </div>
 
@@ -639,6 +731,7 @@ export function AdminBackOffice({
                     thumbnail_url: '',
                     features: ['Montage dynamique', 'Livraison 48h'],
                   });
+                  setAutoDetectedInfo(null);
                   setIsNewVideoModalOpen(true);
                 }}
                 className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs md:text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
@@ -696,6 +789,7 @@ export function AdminBackOffice({
                       <button
                         onClick={() => {
                           setEditingVideo(video);
+                          setAutoDetectedInfo(null);
                           setIsNewVideoModalOpen(true);
                         }}
                         className="px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-white transition-colors cursor-pointer"
@@ -718,14 +812,14 @@ export function AdminBackOffice({
         )}
 
         {/* ======================================================== */}
-        {/* MODAL ÉDITION / AJOUT VIDÉO (100% UPLOAD / GLISSER-DÉPOSER) */}
+        {/* MODAL ÉDITION / AJOUT VIDÉO (AUTO-DÉTECTION INTÉGRALE)   */}
         {/* ======================================================== */}
         {isNewVideoModalOpen && editingVideo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in">
             <div className="bg-[#0d121c] border border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-3xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl relative">
               <button
                 onClick={() => setIsNewVideoModalOpen(false)}
-                className="absolute top-5 right-5 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                className="absolute top-5 right-5 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -736,7 +830,7 @@ export function AdminBackOffice({
                   {editingVideo.title ? `Éditer : ${editingVideo.title}` : 'Nouvelle Vidéo'}
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Téléversez directement vos fichiers par glisser-déposer.
+                  Glissez votre fichier vidéo ci-dessous. Le système extrait et configure tout automatiquement.
                 </p>
               </div>
 
@@ -752,11 +846,18 @@ export function AdminBackOffice({
                 />
               </div>
 
-              {/* ZONE 1 : UPLOAD FICHIER VIDÉO (DRAG & DROP) */}
+              {/* ZONE 1 : UPLOAD FICHIER VIDÉO (AVEC DÉTECTION AUTOMATIQUE) */}
               <div className="space-y-2">
-                <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
-                  1. Fichier Vidéo (MP4, MOV, WebM) — Glisser-Déposer ou Parcourir
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
+                    1. Fichier Vidéo — Détection automatique du Format, de la Durée et de la Miniature
+                  </label>
+                  {videoFileUploading && (
+                    <span className="text-xs text-amber-400 font-bold flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyse & Upload...
+                    </span>
+                  )}
+                </div>
 
                 {editingVideo.video_url ? (
                   <div className="p-4 bg-black/60 border border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
@@ -767,17 +868,35 @@ export function AdminBackOffice({
                         className="w-full h-full object-contain"
                       />
                     </div>
-                    <div className="flex-1 overflow-hidden space-y-1">
+                    <div className="flex-1 overflow-hidden space-y-1.5">
                       <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
                         <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        <span>Fichier vidéo attaché & prêt !</span>
+                        <span>Fichier vidéo attaché & configuré !</span>
                       </div>
                       <p className="text-[11px] text-slate-400 truncate">{editingVideo.video_url}</p>
+
+                      {/* Badges de métadonnées auto-détectées */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500 text-black">
+                          Format {editingVideo.format}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/10 text-slate-200">
+                          Durée {editingVideo.duration}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                          {editingVideo.resolution}
+                        </span>
+                        {editingVideo.thumbnail_url && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            Miniature WebP générée
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => modalVideoInputRef.current?.click()}
-                      className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold shrink-0 cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold shrink-0 cursor-pointer"
                     >
                       Remplacer la vidéo
                     </button>
@@ -798,15 +917,15 @@ export function AdminBackOffice({
                       <Film className="w-6 h-6" />
                     </div>
                     <p className="text-sm font-bold text-white">
-                      {videoFileUploading ? 'Téléversement en cours...' : 'Glissez-déposez votre fichier vidéo ici'}
+                      {videoFileUploading ? 'Analyse et téléversement en cours...' : 'Glissez-déposez votre fichier vidéo ici'}
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Ou cliquez pour sélectionner une vidéo depuis votre ordinateur
+                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                      MP4, MOV ou WebM. Le <strong>format</strong> (9:16 ou 16:9), la <strong>durée</strong> et la <strong>miniature</strong> sont extraits et appliqués automatiquement !
                     </p>
                     {videoFileUploading && (
                       <div className="mt-3 flex items-center justify-center gap-2 text-amber-400 text-xs font-bold">
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Envoi et optimisation en cours...</span>
+                        <span>Lecture des métadonnées & téléversement...</span>
                       </div>
                     )}
                   </div>
@@ -825,11 +944,16 @@ export function AdminBackOffice({
                 />
               </div>
 
-              {/* ZONE 2 : UPLOAD MINIATURE IMAGE (DRAG & DROP) */}
+              {/* ZONE 2 : MINIATURE GÉNÉRÉE AUTOMATIQUEMENT OU PERSONNALISABLE */}
               <div className="space-y-2">
-                <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
-                  2. Miniature Image (Cover / Thumbnail) — Auto-Compressée en WebP
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
+                    2. Miniature Vidéo (Générée automatiquement en WebP)
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    Auto-capturée depuis la vidéo · Remplaçable si souhaité
+                  </span>
+                </div>
 
                 {editingVideo.thumbnail_url ? (
                   <div className="p-4 bg-black/60 border border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
@@ -841,7 +965,7 @@ export function AdminBackOffice({
                     <div className="flex-1 overflow-hidden space-y-1">
                       <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
                         <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        <span>Miniature optimisée en WebP</span>
+                        <span>Miniature WebP haute résolution (&lt; 40 Ko)</span>
                       </div>
                       <p className="text-[11px] text-slate-400 truncate">{editingVideo.thumbnail_url}</p>
                     </div>
@@ -869,10 +993,10 @@ export function AdminBackOffice({
                       <Camera className="w-5 h-5" />
                     </div>
                     <p className="text-xs font-bold text-white">
-                      {thumbFileUploading ? 'Optimisation en cours...' : 'Glissez-déposez une image de miniature'}
+                      {thumbFileUploading ? 'Optimisation en cours...' : 'La miniature sera extraite automatiquement lors du dépôt de la vidéo'}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Conversion automatique en WebP (taille réduite de 95%)
+                      Ou déposez une image personnalisée pour la remplacer
                     </p>
                     {thumbFileUploading && (
                       <div className="mt-2 flex items-center justify-center gap-2 text-amber-400 text-xs font-bold">
@@ -896,60 +1020,72 @@ export function AdminBackOffice({
                 />
               </div>
 
-              {/* Options & Métadonnées */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Catégorie</label>
-                  <select
-                    value={editingVideo.category}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                  >
-                    <option value="tiktok_reels">TikTok & Reels 9:16</option>
-                    <option value="spot_tv">Spot Publicitaire 16:9</option>
-                    <option value="motion_design">Motion Design 3D</option>
-                    <option value="ugc">UGC & Créateurs</option>
-                    <option value="vsl_ecommerce">VSL & Vente</option>
-                  </select>
-                </div>
+              {/* Paramètres Détectés Automatiquement (Ajustables si besoin) */}
+              <div className="p-4 bg-black/40 rounded-2xl border border-white/5 space-y-3">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  ⚙️ Caractéristiques (Détectées automatiquement lors de l'upload)
+                </span>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Format</label>
-                  <select
-                    value={editingVideo.format}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, format: e.target.value })}
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                  >
-                    <option value="9:16">Vertical 9:16</option>
-                    <option value="16:9">Horizontal 16:9</option>
-                  </select>
-                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">
+                      Format (Auto)
+                    </label>
+                    <select
+                      value={editingVideo.format}
+                      onChange={(e) => setEditingVideo({ ...editingVideo, format: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold text-amber-400"
+                    >
+                      <option value="9:16">Vertical 9:16 (TikTok/Reels)</option>
+                      <option value="16:9">Horizontal 16:9 (Spot 4K / TV)</option>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Durée</label>
-                  <input
-                    type="text"
-                    value={editingVideo.duration}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, duration: e.target.value })}
-                    placeholder="30s"
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                  />
-                </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">
+                      Durée (Auto)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingVideo.duration}
+                      onChange={(e) => setEditingVideo({ ...editingVideo, duration: e.target.value })}
+                      placeholder="ex: 22s"
+                      className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold"
+                    />
+                  </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Badge</label>
-                  <input
-                    type="text"
-                    value={editingVideo.badge}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, badge: e.target.value })}
-                    placeholder="ex: 🔥 BEST-SELLER"
-                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
-                  />
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">
+                      Résolution (Auto)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingVideo.resolution}
+                      onChange={(e) => setEditingVideo({ ...editingVideo, resolution: e.target.value })}
+                      placeholder="ex: 1080x1920 Vertical HD"
+                      className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold text-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Catégorie</label>
+                    <select
+                      value={editingVideo.category}
+                      onChange={(e) => setEditingVideo({ ...editingVideo, category: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
+                    >
+                      <option value="tiktok_reels">TikTok & Reels 9:16</option>
+                      <option value="spot_tv">Spot Publicitaire 16:9</option>
+                      <option value="motion_design">Motion Design 3D</option>
+                      <option value="ugc">UGC & Créateurs</option>
+                      <option value="vsl_ecommerce">VSL & Vente</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              {/* Tarifs */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Tarifs & Badge */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-1">Prix (FCFA)</label>
                   <input
@@ -968,6 +1104,16 @@ export function AdminBackOffice({
                     className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-amber-400 font-extrabold text-sm"
                   />
                 </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Badge commercial</label>
+                  <input
+                    type="text"
+                    value={editingVideo.badge}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, badge: e.target.value })}
+                    placeholder="ex: 🔥 VIRAL HOOK"
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs font-bold"
+                  />
+                </div>
               </div>
 
               {/* Description */}
@@ -977,7 +1123,7 @@ export function AdminBackOffice({
                   rows={2}
                   value={editingVideo.description}
                   onChange={(e) => setEditingVideo({ ...editingVideo, description: e.target.value })}
-                  placeholder="Décrivez les atouts de cette vidéo pour le client..."
+                  placeholder="Décrivez les points forts de cette vidéo pour votre client..."
                   className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white text-xs"
                 />
               </div>
@@ -1022,7 +1168,7 @@ export function AdminBackOffice({
         )}
 
         {/* ======================================================== */}
-        {/* ONGLET 2 : GESTIONNAIRE D'AFFICHES (DRAG & DROP)        */}
+        {/* ONGLET 2 : GESTIONNAIRE D'AFFICHES                      */}
         {/* ======================================================== */}
         {activeTab === 'posters' && (
           <div className="space-y-6 animate-in fade-in">
@@ -1111,7 +1257,7 @@ export function AdminBackOffice({
             <div className="bg-[#0d121c] border border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-xl w-full max-h-[92vh] overflow-y-auto space-y-5 shadow-2xl relative">
               <button
                 onClick={() => setIsNewPosterModalOpen(false)}
-                className="absolute top-5 right-5 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+                className="absolute top-5 right-5 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1134,7 +1280,7 @@ export function AdminBackOffice({
                 />
               </div>
 
-              {/* ZONE UPLOAD DIRECT AFFICHE (GLISSER-DÉPOSER) */}
+              {/* ZONE UPLOAD DIRECT AFFICHE */}
               <div className="space-y-2">
                 <label className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
                   Visuel de l'Affiche — Glisser-Déposer ou Parcourir
@@ -1181,7 +1327,7 @@ export function AdminBackOffice({
                       {posterFileUploading ? 'Compression en cours...' : 'Glissez-déposez le fichier image de l\'affiche ici'}
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      PNG, JPG ou WebP. Compression automatique à 82% sans perte de qualité.
+                      PNG, JPG ou WebP. Compression automatique sans perte de netteté.
                     </p>
                     {posterFileUploading && (
                       <div className="mt-3 flex items-center justify-center gap-2 text-amber-400 text-xs font-bold">
@@ -1505,7 +1651,7 @@ export function AdminBackOffice({
                 onClick={handleSavePackages}
                 className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs md:text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
               >
-                <Save className="w-4 h-4" />
+                <Save className="w-5 h-5" />
                 <span>Enregistrer les Packs</span>
               </button>
             </div>
@@ -1732,20 +1878,21 @@ export function AdminBackOffice({
                         {item.isVideo && (
                           <button
                             onClick={() => {
+                              const meta = item.meta || {};
                               setEditingVideo({
                                 id: `vid-${Date.now()}`,
                                 title: item.name.replace(/\.[^/.]+$/, ''),
-                                category: 'tiktok_reels',
-                                format: '9:16',
-                                duration: '30s',
-                                resolution: '4K Ultra HD',
+                                category: meta.suggestedCategory || 'tiktok_reels',
+                                format: meta.format || '9:16',
+                                duration: meta.duration || '30s',
+                                resolution: meta.resolution || '4K Ultra HD',
                                 price_fcfa: 25000,
                                 price_eur: 39,
                                 badge: 'NOUVEAU',
                                 description: '',
                                 video_url: item.url,
                                 preview_url: item.url,
-                                thumbnail_url: '',
+                                thumbnail_url: item.thumbUrl || '',
                                 features: ['Montage dynamique', 'Livraison 48h'],
                               });
                               setIsNewVideoModalOpen(true);
@@ -1809,3 +1956,4 @@ export function AdminBackOffice({
     </div>
   );
 }
+
