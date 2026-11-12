@@ -1,0 +1,28 @@
+{
+  "name": "ktfa-flex-marketplace",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "wrangler deploy",
+    "d1:init": "wrangler d1 execute ktfa-flex-db --remote --file=./d1/schema.sql",
+    "d1:seed": "wrangler d1 execute ktfa-flex-db --remote --file=./d1/seed.sql",
+    "d1:local:init": "wrangler d1 execute ktfa-flex-db --local --file=./d1/schema.sql",
+    "d1:local:seed": "wrangler d1 execute ktfa-flex-db --local --file=./d1/seed.sql"
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.3",
+    "firebase": "^13.2.0",
+    "lucide-react": "^0.435.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.2",
+    "wrangler": "^4.68.1"
+  }
+}

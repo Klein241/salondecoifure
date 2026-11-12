@@ -1,0 +1,68 @@
+------------------------------------------------------------
+Date : 08/10/2026 15:43:30
+Client : ABIAI COSMETIQUE
+Lien Public : https://abiai-cosmetique.mynexus.workers.dev
+Lien Administration : https://abiai-cosmetique.mynexus.workers.dev/login/admin
+Code Secret Admin : client2026
+Numéro WhatsApp : 24177624383
+Base de données D1 : abiai-cosmetique-db (ID: ffe64fd1-73fc-4c3c-9e84-cfe74b150c17)
+------------------------------------------------------------
+------------------------------------------------------------
+Date : 12/10/2026 11:19:06
+Mode : ⚡ Flash Multi-Tenant (Zéro-Build)
+Client : Ifpstacmr
+Lien Public : https://digital-mark-pro.mynexus.workers.dev/?tenant=ifpstacmr
+Lien Administration : https://digital-mark-pro.mynexus.workers.dev/?tenant=ifpstacmr&admin=1
+Code Secret Admin : client2026
+Numéro WhatsApp : +237 6 94 47 34 14
+Licence Valide : jusqu'au 2026-11-11 (25000 FCFA/mois)
+Base D1 : Multi-Tenant partagée
+------------------------------------------------------------
+------------------------------------------------------------
+Date : 12/10/2026 12:53:06
+Mode : 🏛️ Dédié Isolé
+Client : Eclair+ Prod Sarl Cosmétique
+Lien Public : https://eclair-prod-sarl-cosmetique.mynexus.workers.dev
+Lien Administration : https://eclair-prod-sarl-cosmetique.mynexus.workers.dev/login/admin
+Code Secret Admin : client2026
+Numéro WhatsApp : +237 6 96 71 40 60
+Licence Valide : jusqu'au 2026-11-11 (25000 FCFA/mois)
+Base D1 : eclair-prod-sarl-cosmetique-db (ID: 969bcc77-8d6c-49b7-a233-fd059e21f364)
+------------------------------------------------------------
+------------------------------------------------------------
+Date : 02/11/2026 15:52:00
+Mode : ⚡ Flash Multi-Tenant (Style Neumorphisme / Clairmorphisme)
+Client : Location Express Gabon (Voitures & Meublés)
+Lien Public : https://digital-mark-pro.mynexus.workers.dev/?t=location-express
+Lien Public Secondaire : https://digital-mark-pro.mynexus.workers.dev/?t=l
+Lien Administration : https://digital-mark-pro.mynexus.workers.dev/login/admin?t=location-express
+Code Secret Admin : Client2026
+Numéro WhatsApp : 24162744533
+Nom de Domaine Personnalisé : locationexpressgabon.com
+Licence Valide : jusqu'au 2030-01-01 (25000 FCFA/mois)
+Base D1 : digitalmarkpro-db (Table tenants, slug: location-express et l)
+------------------------------------------------------------
+------------------------------------------------------------
+Date : 06/11/2026 15:40:00
+Mode : 🍔 Fast-Food Signature & Five Star Burgers
+Client : Burgys Gabon (Libreville - Glass & Nzeng-Ayong)
+Lien Public : https://digital-mark-pro.mynexus.workers.dev/?t=burgys-gabon
+Lien Administration : https://digital-mark-pro.mynexus.workers.dev/login/admin?t=burgys-gabon
+Code Secret Admin : client2026
+Numéro WhatsApp : 24162375492 / 065 00 90 00
+Licence Valide : jusqu'au 2030-01-01
+Base D1 : digitalmarkpro-db (Table tenants, slug: burgys-gabon)
+------------------------------------------------------------
+------------------------------------------------------------
+Date : 06/11/2026 16:50:00
+Mode : 🍕 Pizzeria Artisanale au Four à Bois (Style Braise & Feu de Dieu)
+Client : Les Pizzas du feu de Dieu (Libreville - Regina Rose Manga)
+Lien Public : https://digital-mark-pro.mynexus.workers.dev/?t=les-pizzas-du-feu-de-dieu
+Lien Court : https://digital-mark-pro.mynexus.workers.dev/?t=pizzas-feu-de-dieu
+Lien Administration : https://digital-mark-pro.mynexus.workers.dev/login/admin?t=les-pizzas-du-feu-de-dieu
+Code Secret Admin : feudedieu2026
+Numéro WhatsApp : 24166756156 (066 75 61 56 / 077 15 80 28)
+Réseaux Sociaux : Facebook, Instagram (@lespizzasdufeudedieu), TikTok (@pizzeriafeudedieu)
+Licence Valide : jusqu'au 2030-01-01
+Base D1 : digitalmarkpro-db (Table tenants, slug: les-pizzas-du-feu-de-dieu & pizzas-feu-de-dieu)
+------------------------------------------------------------

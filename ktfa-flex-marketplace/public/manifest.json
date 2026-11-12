@@ -1,0 +1,31 @@
+{
+  "name": "KTFA FLEX — Marketplace & Paiement Échelonné",
+  "short_name": "KTFA FLEX",
+  "description": "Marketplace officielle KTFA FLEX au Cameroun — Achetez Malin, Payez à Votre Rythme en 4x sans frais.",
+  "start_url": "/?t=ktfa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#3e4148",
+  "theme_color": "#D97706",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { ShoppingBag, ShoppingCart, X, Plus, Minus, MessageCircle, Package, Trash2, Search, Eye, Star, Zap, Check, Gem } from "lucide-react"
 import { getProducts, getSiteSettings } from "../supabase"
 import { useToast } from "./Toast.jsx"
 import { useConfirm } from "./ConfirmModal"
 import { getFideliteSettings, getWallet, payerBoutique, createOrder } from "../fidelite"
+import { FormattedProductDescription } from './FormattedProductDescription';
 
 export default function Shop({ currentUser, isTab = false }) {
   const [products, setProducts] = useState([]);
@@ -82,10 +83,11 @@ export default function Shop({ currentUser, isTab = false }) {
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
 
   const getWhatsAppUrl = (items, total, extraMsg = '') => {
-    const wa = (settings.whatsapp || '+241077004073').replace(/\D/g, '');
+    const wa = (settings.whatsapp_number || settings.whatsapp || '+241077004073').replace(/\D/g, '');
+    const brand = settings.company_name || settings.site_name || "l'équipe";
     const lines = items.map(i => `  • ${i.name} x${i.qty} = ${(i.price * i.qty).toLocaleString('fr-FR')} FCFA`);
     const msg = encodeURIComponent(
-      `Bonjour ${settings.site_name} !\n\nJe souhaite commander :\n${lines.join('\n')}\n\nTotal initial : ${total.toLocaleString('fr-FR')} FCFA${extraMsg}\n\nMerci de confirmer ma commande. 🙏`
+      `Bonjour ${brand} !\n\nJe souhaite commander :\n${lines.join('\n')}\n\nTotal initial : ${total.toLocaleString('fr-FR')} FCFA${extraMsg}\n\nMerci de confirmer ma commande. 🙏`
     );
     return `https://wa.me/${wa}?text=${msg}`;
   };
@@ -104,11 +106,12 @@ export default function Shop({ currentUser, isTab = false }) {
 
   const handleDirectOrder = (product) => {
     if (product.in_stock === false) return;
-    const wa = (settings.whatsapp || "+241077004073").replace(/\D/g, "");
+    const wa = (settings.whatsapp_number || settings.whatsapp || "+241077004073").replace(/\D/g, "");
+    const brand = settings.company_name || settings.site_name || "l'équipe";
     const imgUrl = product.image_url || (product.images && product.images[0]);
     const imgLine = "";
     const msg = encodeURIComponent(
-      `Bonjour ${settings.site_name} !\n\nJe souhaite commander :\n  • ${product.name} x1 = ${Number(product.price).toLocaleString("fr-FR")} FCFA${imgLine}\n\nTotal : ${Number(product.price).toLocaleString("fr-FR")} FCFA\n\nMerci de confirmer ma commande. 🙏`
+      `Bonjour ${brand} !\n\nJe souhaite commander :\n  • ${product.name} x1 = ${Number(product.price).toLocaleString("fr-FR")} FCFA${imgLine}\n\nTotal : ${Number(product.price).toLocaleString("fr-FR")} FCFA\n\nMerci de confirmer ma commande. 🙏`
     );
     window.open(`https://wa.me/${wa}?text=${msg}`, "_blank");
   };
@@ -580,9 +583,12 @@ export default function Shop({ currentUser, isTab = false }) {
               </div>
 
               {selectedProduct.description && (
-                <p style={{ fontSize: '0.92rem', color: C.text, lineHeight: '1.7', marginBottom: 24 }}>
-                  {selectedProduct.description}
-                </p>
+                <div style={{ marginBottom: 24 }}>
+                  <FormattedProductDescription
+                    description={selectedProduct.description}
+                    isDarkMode={true}
+                  />
+                </div>
               )}
 
               {/* Action buttons */}

@@ -1,30 +1,54 @@
 import React, { useState } from 'react';
 import { X, MessageCircle, SlidersHorizontal, CheckCircle2, Copy, Check } from 'lucide-react';
-import { buildVideoWhatsAppMessage, formatWhatsAppUrl, logInquiry } from '../api/cloudflare';
+import {
+  buildVideoWhatsAppMessage,
+  buildPosterWhatsAppMessage,
+  formatWhatsAppUrl,
+  logInquiry,
+} from '../api/cloudflare';
 
 /**
  * Modal pour personnaliser le brief avant envoi WhatsApp
  */
-export function CustomBriefModal({ video, whatsappNumber, currency, onClose }) {
+export function CustomBriefModal({
+  item,
+  itemType,
+  video,
+  whatsappNumber,
+  currency,
+  onClose,
+  settings = {},
+}) {
   const [clientBrand, setClientBrand] = useState('');
   const [clientNote, setClientNote] = useState('');
   const [copied, setCopied] = useState(false);
 
-  if (!video) return null;
+  const targetItem = item || video;
+  if (!targetItem) return null;
 
-  const message = buildVideoWhatsAppMessage({
-    video,
-    currency,
-    customNote: clientNote,
-    clientBrand,
-  });
+  const isPoster = itemType === 'poster' || targetItem.dimensions;
+  const message = isPoster
+    ? buildPosterWhatsAppMessage({
+        poster: targetItem,
+        currency,
+        siteUrl: window.location.origin,
+        customBrief: { notes: clientNote, brandName: clientBrand },
+        companyName: settings.company_name || 'Notre Entreprise',
+      })
+    : buildVideoWhatsAppMessage({
+        video: targetItem,
+        currency,
+        siteUrl: window.location.origin,
+        customBrief: { notes: clientNote, brandName: clientBrand },
+        companyName: settings.company_name || 'Notre Entreprise',
+      });
 
   const handleSend = () => {
     logInquiry({
-      service_type: 'video_brief',
-      item_id: video.id,
-      item_title: video.title,
-      estimated_price_fcfa: video.price_fcfa,
+      service_type: isPoster ? 'poster_brief' : 'video_brief',
+      item_id: targetItem.id,
+      item_title: targetItem.title,
+      estimated_price_fcfa: targetItem.price_fcfa,
       whatsapp_message: message,
     });
     const url = formatWhatsAppUrl(whatsappNumber, message);

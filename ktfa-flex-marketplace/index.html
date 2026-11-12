@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>KTFA FLEX 💎 — Marketplace & Paiement Échelonné Cameroun</title>
+    <meta name="description" content="Achetez malin, payez à votre rythme : smartphones, électroménager et packs business avec facilités de paiement échelonné en 3x et 4x mensualités." />
+    
+    <!-- Open Graph / Réseaux sociaux & WhatsApp preview -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="KTFA FLEX 💎 — Marketplace & Paiement Échelonné" />
+    <meta property="og:description" content="Facilité de paiement en 3x et 4x sur les smartphones, électroménager et équipements pro à Douala, Yaoundé et tout le Cameroun." />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80" />
+    <meta property="og:site_name" content="KTFA FLEX" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="KTFA FLEX 💎 — Marketplace Flexible" />
+    <meta name="twitter:description" content="Achetez aujourd'hui et payez à votre rythme." />
+
+    <meta name="theme-color" content="#030712" />
+    
+    <!-- PWA Web App Manifest & Mobile App Capabilities -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="KTFA FLEX" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" href="/icon-192.png" />
+    
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                gold: '#f59e0b',
+                dark: '#030712',
+                card: '#111827',
+                emerald: '#10b981'
+              }
+            },
+            fontFamily: {
+              display: ['Outfit', 'sans-serif'],
+              body: ['Inter', 'sans-serif']
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body class="bg-[#030712] text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

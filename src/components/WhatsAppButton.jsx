@@ -1,11 +1,19 @@
 import React, { useState } from "react"
 import { MessageSquare } from "lucide-react"
 
-export default function WhatsAppButton() {
+export default function WhatsAppButton({
+  whatsappNumber,
+  companyName = 'notre équipe',
+  defaultMessage,
+}) {
   const [hovered, setHovered] = useState(false);
 
   const handleClick = () => {
-    window.open("https://wa.me/24177004073", "_blank");
+    const clean = String(whatsappNumber || '').replace(/\D/g, '');
+    const msg = encodeURIComponent(
+      defaultMessage || `👋 Bonjour ${companyName}, je souhaite échanger avec vous.`
+    );
+    window.open(`https://wa.me/${clean}?text=${msg}`, "_blank");
   };
 
   return (

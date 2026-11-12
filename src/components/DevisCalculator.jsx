@@ -25,6 +25,7 @@ export function DevisCalculator({
   whatsappNumber,
   isOpenModal = false,
   onClose = null,
+  settings = {},
 }) {
   const [serviceType, setServiceType] = useState('tiktok_916');
   const [duration, setDuration] = useState('30s');
@@ -149,6 +150,7 @@ export function DevisCalculator({
       currency,
       clientBrand,
       clientPhone,
+      companyName: settings.company_name || 'Notre Entreprise',
     });
 
     logInquiry({
@@ -164,19 +166,33 @@ export function DevisCalculator({
   };
 
   const content = (
-    <div className="glass-panel p-6 sm:p-8 md:p-10 border border-white/10 rounded-2xl bg-gradient-to-br from-[#101420] via-[#0d121c] to-[#0a0d14] max-w-4xl mx-auto shadow-2xl">
+    <div 
+      className="p-6 sm:p-8 md:p-10 border rounded-2xl max-w-4xl mx-auto shadow-2xl transition-colors"
+      style={{
+        backgroundColor: 'var(--bg-card, #101420)',
+        borderColor: 'var(--border-subtle, rgba(255,255,255,0.1))',
+        color: 'var(--text-main, #f8fafc)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-purple-400 mb-2">
             <Calculator className="w-4 h-4" />
-            <span>Estimation Instantanée en Direct</span>
+            <span>{settings.devis_badge || 'Estimation Instantanée en Direct'}</span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-extrabold text-white">
-            Simulateur de Devis <span className="gradient-text-gold">Express</span>
+          <h3 
+            className="text-2xl sm:text-3xl font-extrabold"
+            style={{ color: 'var(--text-title, #ffffff)' }}
+          >
+            {settings.devis_title || 'Simulateur de Devis Express'}
           </h3>
-          <p className="text-gray-400 text-xs sm:text-sm mt-1">
-            Configurez votre besoin sur-mesure et transmettez votre devis directement sur WhatsApp en 1 clic.
+          <p 
+            className="text-xs sm:text-sm mt-1"
+            style={{ color: 'var(--text-muted, #94a3b8)' }}
+          >
+            {settings.devis_subtitle ||
+              'Configurez votre besoin sur-mesure et transmettez votre devis directement sur WhatsApp en 1 clic.'}
           </p>
         </div>
 
@@ -391,7 +407,13 @@ export function DevisCalculator({
   }
 
   return (
-    <section id="simulateur" className="py-16 bg-[#0a0d14]">
+    <section 
+      id="simulateur" 
+      className="py-16 transition-colors"
+      style={{
+        backgroundColor: 'var(--bg-secondary, #0a0d14)',
+      }}
+    >
       <div className="container mx-auto px-4">{content}</div>
     </section>
   );

@@ -225,7 +225,22 @@ INSERT OR REPLACE INTO packages (
 -- Insertion des Configurations Globales
 INSERT OR REPLACE INTO settings (key, value) VALUES
 ('whatsapp_number', '24177000000'),
-('company_name', 'DIGITAL MARK PRO'),
-('agency_tagline', 'Studio Créatif Vidéo, Graphisme Publicitaire & Marketing High-Impact'),
-('contact_email', 'contact@digitalmarkpro.com'),
-('default_currency', 'FCFA');
+('company_name', 'Notre Entreprise'),
+('tagline', 'Site Officiel'),
+('agency_tagline', 'Site Officiel & Catalogue en Ligne'),
+('contact_email', ''),
+('default_currency', 'FCFA'),
+('admin_code', '2026'),
+('default_whatsapp_message', '👋 Bonjour, je souhaite commander un produit ou échanger avec votre équipe.'),
+('hero_badge', 'BIENVENUE SUR NOTRE SITE OFFICIEL'),
+('hero_title', 'Des Produits & Prestations d''Exception'),
+('hero_subtitle', 'Découvrez notre catalogue, nos nouveautés exclusives et commandez directement sur WhatsApp.'),
+('videos_badge', 'Nos Produits & Réalisations'),
+('videos_title', 'Nos Produits'),
+('posters_badge', 'Galerie & Visuels'),
+('posters_title', 'Nos Produits & Réalisations'),
+('posters_subtitle', 'Découvrez nos sélections et produits en image'),
+('show_devis_calculator', 'false'),
+('show_videos_section', 'true'),
+('show_posters_section', 'true'),
+('show_packages_section', 'false');

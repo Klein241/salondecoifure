@@ -12,14 +12,15 @@
     "d1:seed": "wrangler d1 execute digitalmarkpro-db --file=./d1/seed.sql"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "canvas-confetti": "^1.9.3",
+    "firebase": "^13.2.0",
     "lucide-react": "^0.435.0",
-    "canvas-confetti": "^1.9.3"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "vite": "^5.4.2",
     "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.2",
     "wrangler": "^4.68.1"
   }
 }

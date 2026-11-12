@@ -68,7 +68,7 @@ export function AdminPanel({ settings, onClose, onSettingsSaved }) {
             </div>
             <div>
               <h3 className="text-lg font-extrabold text-white">Administration</h3>
-              <p className="text-xs text-gray-400">DIGITAL MARK PRO · Config Cloudflare</p>
+              <p className="text-xs text-gray-400">{companyName || 'Administration'} · Config Cloudflare</p>
             </div>
           </div>
           <button
@@ -139,7 +139,7 @@ export function AdminPanel({ settings, onClose, onSettingsSaved }) {
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="DIGITAL MARK PRO"
+                placeholder="ex: Mon Entreprise ou Marque"
                 className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-400"
               />
             </div>
@@ -147,7 +147,7 @@ export function AdminPanel({ settings, onClose, onSettingsSaved }) {
             {/* Tagline */}
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-gray-300 block mb-1.5">
-                Slogan / Tagline de l'agence
+                Slogan / Tagline
               </label>
               <input
                 type="text"
